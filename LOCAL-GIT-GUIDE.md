@@ -1,221 +1,163 @@
-# MotionLab 本地 Git 操作指南
+# MotionLab Git 操作指南（已在本机验证可用）
 
-## 📋 前置准备
+> 本文档记录的是**这台电脑上实测跑通的**配置，不是通用模板。
+> 之前的指南之所以"配不好"，主要卡在三个坑上（见下面「三个坑」一节）。
 
-### 1. 下载整合包
+---
 
-下载链接：[motion-lab-full-for-agents.tar.gz](https://coze-coding-project.tos.coze.site/cli_attachment/2026-10-16/4487559359508896_bbcab1db93ab6a790f2f987fe81fb4ee_motion-lab-full-for-agents.tar.gz?sign=1792203833-54169595db-0-e24c788376151b2fd11220b54a1febd6b90d7a563ec06d708e3aa1cc18192440)
+## 一、当前仓库状态
 
-### 2. 解压到本地
+| 项目 | 值 |
+|------|-----|
+| 本地路径 | `D:\codex2\REMOTIONAI2\motion-lab` |
+| 远程仓库 | https://github.com/xuderu9/motion-lab （public） |
+| 主分支 | `main`（GitHub 的默认分支也是 main，两边一致） |
+| 推送方式 | **SSH**（不是 HTTPS） |
 
-```bash
-# 解压到 F:\remotion\
-cd F:\remotion
-tar -xzf motion-lab-full-for-agents.tar.gz
+查看状态：
 
-# 或者用 7-Zip 解压
-```
-
-### 3. 进入项目目录
-
-```bash
-cd motion-lab-full/motion-lab
+```powershell
+cd D:\codex2\REMOTIONAI2\motion-lab
+git status -sb
+git remote -v
+git log --oneline -5
 ```
 
 ---
 
-## 🔧 Git 初始化
+## 二、日常操作（三条命令）
 
-### 1. 初始化 Git 仓库
+```powershell
+cd D:\codex2\REMOTIONAI2\motion-lab
 
-```bash
-git init
-git config user.name "你的用户名"
-git config user.email "你的邮箱"
+git add -A                                              # 暂存所有改动
+git commit -m "feat: 说明这次改了什么"                    # 提交
+git push                                                # 推到 GitHub（已设好上游，直接 push 即可）
 ```
 
-### 2. 提交初始代码
+拉取别人的改动：
 
-```bash
-git add .
-git commit -m "init: MotionLab v1 - 基础架构和组件"
+```powershell
+git pull
 ```
 
-### 3. 创建各 AI 的工作分支
+---
 
-```bash
-# 创建 Codex 的工作分支
+## 三、三个坑（为什么之前配不好）
+
+### 坑 1：没有任何凭据，HTTPS 会卡死
+
+Windows 凭据管理器里**没有** GitHub 凭据，`credential.helper=manager` 会弹出
+浏览器/对话框等待登录。在自动化环境里这会**永久挂住**（表现为 `git push`
+几分钟没反应，还留下一堆 `git-credential-manager` 进程）。
+
+**解决**：改用 SSH（本机的 `~/.ssh/id_ed25519` 已经绑定在 GitHub 账号 xuderu9 上）。
+现仓库 `origin` 已指向 SSH：
+
+```powershell
+git remote -v
+# origin  git@github.com:xuderu9/motion-lab.git (fetch)
+# origin  git@github.com:xuderu9/motion-lab.git (push)
+```
+
+验证 SSH 是否通（出现 `Hi xuderu9!` 就对了，注意它退出码是 1，属正常）：
+
+```powershell
+ssh -T git@github.com
+```
+
+### 坑 2：用户名里的非 ASCII 字符把 Git 自带的 ssh 搞崩
+
+本机用户名是 `Admin（无密码）`，含中文全角括号。
+Git for Windows 自带的 MSYS 版 ssh 在解析这个家目录时会把路径编码搞坏，报：
+
+```
+Could not create directory '/c/Users/Admin\243\250\316\336\303\334\302\353\243\251/.ssh'
+git@github.com: Permission denied (publickey)
+```
+
+**解决**：让 Git 改用 Windows 原生的 OpenSSH（它能正确处理中文路径）。
+这条配置**只写在本仓库**里，没有动全局配置：
+
+```powershell
+git config core.sshCommand '"C:/Windows/System32/OpenSSH/ssh.exe" -o BatchMode=yes -o StrictHostKeyChecking=accept-new'
+```
+
+> 如果你希望所有仓库都生效，把那行命令的 `--global` 加上即可。
+
+### 坑 3：没有 .gitignore，node_modules 会被提交进去
+
+原项目**完全没有 `.gitignore`**。一旦 `npm install`，`node_modules`（几百 MB、
+上万个文件）就会被 `git add -A` 一起提交，仓库瞬间废掉。
+
+现在已经补上 `.gitignore`（忽略 `node_modules/`、`out/`、`dist/`、`.env*` 等），
+以及 `.gitattributes`（统一换行符为 LF，避免 Windows 的 CRLF 把每个文件都变成
+"整文件改动"）。
+
+**新增文件前先确认它真的该进仓库**：
+
+```powershell
+git status --short          # 看一眼将要提交什么
+git check-ignore -v 某路径   # 确认某路径是否已被忽略
+```
+
+---
+
+## 四、多 AI 协作分支流程
+
+项目里同时有多个 AI/多人改代码时，按分支隔离：
+
+```powershell
+# 开一个新分支干活
 git checkout -b agent-codex/3d-optimization
 
-# 回到主分支
-git checkout master
+# ...改代码，自测...
+npm run typecheck        # 类型检查必须过
+npm run render           # 能出片
 
-# 创建 Kimi 的工作分支
-git checkout -b agent-kimi/performance
-
-# 回到主分支
-git checkout master
-
-# 创建 Trae 的工作分支
-git checkout -b agent-trae/effects
-
-# 回到主分支
-git checkout master
+git add -A
+git commit -m "feat(3d): 说明改了什么"
+git push -u origin agent-codex/3d-optimization
 ```
 
-### 4. 查看所有分支
+主干合并（推荐在 GitHub 上开 PR，避免本地冲突）：
 
-```bash
-git branch -a
+```powershell
+git checkout main
+git pull
+git merge --no-ff agent-codex/3d-optimization
+git push
 ```
 
-应该看到：
-```
-* master
-  agent-codex/3d-optimization
-  agent-kimi/performance
-  agent-trae/effects
+有冲突时：
+
+```powershell
+git status                  # 看哪些文件冲突
+# 手动编辑，删掉 <<<<<<< ======= >>>>>>> 标记
+git add -A
+git commit -m "merge: 解决冲突"
 ```
 
 ---
 
-## 📋 任务分配
+## 五、提交前自检清单
 
-### Agent 1: Codex（3D 场景优化）
-
-**分支**：`agent-codex/3d-optimization`
-
-**任务**：升级 3D 场景到游戏级画面质感
-
-**具体工作**：
-1. 升级 PBR 材质系统（MeshStandardMaterial）
-2. 添加复杂光照系统（多光源 + 阴影）
-3. 改进纹理质量（程序化纹理）
-
-**参考文件**：
-- `TASK-CODEX-3D.md`（详细任务说明）
-
-**切换分支**：
-```bash
-git checkout agent-codex/3d-optimization
+```powershell
+npm run typecheck                       # 1. TypeScript 无报错
+npm run still                           # 2. 能渲出一帧
+npm run render                          # 3. 能出完整视频
+git status --short                      # 4. 没有 node_modules / out 混进来
 ```
 
-**完成后提交**：
-```bash
-git add .
-git commit -m "feat: 升级 3D 场景的 PBR 材质和光照"
+渲染完记得确认没有残留的 `chrome-headless-shell` 进程（残留进程会干扰下一次渲染）：
+
+```powershell
+Get-Process chrome-headless-shell -ErrorAction SilentlyContinue | Stop-Process -Force
 ```
 
 ---
 
-### Agent 2: Kimi（性能优化）
-
-**分支**：`agent-kimi/performance`
-
-**任务**：优化渲染性能
-
-**具体工作**：
-1. 使用 `useMemo` 缓存计算结果
-2. 使用 `React.memo` 优化组件重渲染
-3. 优化 shader 性能
-4. 平衡质量和性能
-
-**参考文件**：
-- `TASK-KIMI-PERFORMANCE.md`（详细任务说明）
-
-**切换分支**：
-```bash
-git checkout agent-kimi/performance
-```
-
-**完成后提交**：
-```bash
-git add .
-git commit -m "perf: 优化渲染性能"
-```
-
----
-
-### Agent 3: Trae（视觉效果）
-
-**分支**：`agent-trae/effects`
-
-**任务**：添加后处理效果和特效
-
-**具体工作**：
-1. 添加后处理管线（Bloom + DOF + ToneMapping）
-2. 添加特效组件（粒子爆炸、渐变转场等）
-3. 优化视觉效果
-
-**参考文件**：
-- `TASK-TRAE-EFFECTS.md`（详细任务说明）
-
-**切换分支**：
-```bash
-git checkout agent-trae/effects
-```
-
-**完成后提交**：
-```bash
-git add .
-git commit -m "feat: 添加后处理效果和特效"
-```
-
----
-
-## 🔄 整合流程
-
-### 1. 收集各 AI 的代码
-
-每个 AI 完成后，你需要：
-
-```bash
-# 切换到对应的分支，查看代码
-git checkout agent-codex/3d-optimization
-# 查看代码，确认没问题
-
-# 回到主分支
-git checkout master
-
-# 合并 Codex 的代码
-git merge agent-codex/3d-optimization
-
-# 重复其他 AI...
-```
-
-### 2. 解决冲突（如果有）
-
-如果有冲突，需要手动解决：
-
-```bash
-# 查看冲突文件
-git status
-
-# 手动编辑冲突文件
-# 解决冲突后
-git add .
-git commit -m "merge: 解决合并冲突"
-```
-
-### 3. 测试效果
-
-```bash
-npm install
-npm run dev
-# 浏览器打开 http://localhost:3000
-```
-
-### 4. 发给 Claw 整合（如果需要）
-
-如果整合有问题，可以把代码发给我（Claw），我来解决。
-
----
-
-## 📞 联系方式
-
-如有问题，请联系用户（晚风徐徐）。
-
----
-
-**文档版本**：v1.0  
+**文档版本**：v2.0
 **最后更新**：2026-10-16
+**说明**：v1.0 的内容（`git init`、`git checkout master` 建三个 AI 分支那套）
+是在**仓库还没建好**的前提下写的，与本机实际状态不符，已作废。

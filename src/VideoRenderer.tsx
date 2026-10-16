@@ -12,7 +12,9 @@ import type { VideoSpec, VideoSpecInput, Shot, Element } from "./schema/video-sp
 
 // 导入组件
 import { RotatingEarth } from "./components/3d/RotatingEarth";
+import { CameraRig } from "./components/3d/earth/CameraRig";
 import { CardStack3D } from "./components/3d/CardStack3D";
+import type { CameraMotionConfig } from "./components/3d/earth/CameraRig";
 import { SmoothLineChart } from "./components/charts/SmoothLineChart";
 import { BarChart } from "./components/charts/BarChart";
 import { ComparisonChart } from "./components/charts/ComparisonChart";
@@ -31,7 +33,11 @@ import { Fireflies } from "./components/particles/Fireflies";
 type VideoRendererProps = VideoSpecInput;
 
 // 渲染单个元素
-const RenderElement: React.FC<{ element: Element }> = ({ element }) => {
+const RenderElement: React.FC<{
+  element: Element;
+  shotDurationInFrames: number;
+  cameraMotion?: CameraMotionConfig;
+}> = ({ element, shotDurationInFrames, cameraMotion }) => {
   const { component, data, position } = element;
   const { width, height } = useVideoConfig();
 
@@ -49,12 +55,34 @@ const RenderElement: React.FC<{ element: Element }> = ({ element }) => {
           <ThreeCanvas
             width={width}
             height={height}
-            camera={{ position: [0, 0, 5], fov: 50 }}
+            camera={{
+              position: [0, 0, data.cameraZ ?? 4.6],
+              fov: data.fov ?? 40,
+            }}
           >
+            {/* 镜头运动：spec 里写的 push-in / orbit 等在这里真正生效 */}
+            <CameraRig
+              motion={cameraMotion}
+              shotDurationInFrames={shotDurationInFrames}
+              baseZ={data.cameraZ ?? 4.6}
+              fov={data.fov ?? 40}
+            />
             <RotatingEarth
               rotationSpeed={data.rotationSpeed || 0.002}
+              axialTilt={data.axialTilt ?? 23.44}
+              sunDirection={data.sunDirection ?? [1, 0.35, 0.6]}
               showAtmosphere={data.showAtmosphere !== false}
               showStars={data.showStars !== false}
+              showClouds={data.showClouds !== false}
+              showNightLights={data.showNightLights !== false}
+              showBackground={data.showBackground !== false}
+              quality={data.quality ?? "high"}
+              enablePostFx={data.enablePostFx !== false}
+              bloomIntensity={data.bloomIntensity ?? 0.85}
+              bloomThreshold={data.bloomThreshold ?? 0.62}
+              vignette={data.vignette ?? 0.55}
+              enableDof={data.enableDof === true}
+              sunIntensity={data.sunIntensity ?? 3}
             />
           </ThreeCanvas>
         </div>
@@ -148,6 +176,7 @@ const RenderElement: React.FC<{ element: Element }> = ({ element }) => {
 // 渲染单个镜头
 const RenderShot: React.FC<{ shot: Shot; fps: number }> = ({ shot, fps }) => {
   const durationInFrames = Math.round(shot.duration * fps);
+  const cameraMotion = shot.camera?.motion as CameraMotionConfig | undefined;
 
   return (
     <Sequence from={Math.round(shot.startTime * fps)} durationInFrames={durationInFrames}>
@@ -155,7 +184,11 @@ const RenderShot: React.FC<{ shot: Shot; fps: number }> = ({ shot, fps }) => {
         {/* 渲染元素 */}
         {shot.elements.map((element) => (
           <Sequence key={element.id} from={0} durationInFrames={durationInFrames}>
-            <RenderElement element={element} />
+            <RenderElement
+              element={element}
+              shotDurationInFrames={durationInFrames}
+              cameraMotion={cameraMotion}
+            />
           </Sequence>
         ))}
       </AbsoluteFill>

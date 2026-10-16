@@ -2,22 +2,22 @@
 
 ## 快速开始
 
-```bash
-# 1. 解压项目
-tar -xzf motion-lab-v1.tar.gz
-cd motion-lab
+```powershell
+cd D:\codex2\REMOTIONAI2\motion-lab
 
-# 2. 安装依赖（必须在本地电脑，不要云端）
-npm install
+npm install           # 安装依赖（必须在本地，不要云端）
+npm run dev           # 打开 http://localhost:3000 在 Studio 里预览 DemoVideo
+npm run render        # 渲染成片 → out\demo.mp4
 
-# 3. 启动预览
-npm run dev
-
-# 4. 浏览器打开 http://localhost:3000，选择 DemoVideo 预览
-
-# 5. 渲染视频
-npm run render
+npm run typecheck     # 类型检查（提交前必跑，必须 0 报错）
 ```
+
+> **渲染慢十倍的话**：检查 `remotion.config.ts` 里的
+> `Config.setChromiumOpenGlRenderer("angle")` 是否还在。
+> 走软件光栅化时 30s/1080p 要 418s，走硬件只要约 29s。详见 `TASK-KIMI-PERFORMANCE.md`。
+
+视频内容全部由 `src/data/demo-spec.json` 的一份 JSON 描述驱动，
+改 JSON 就能改片子，不需要动组件代码。
 
 ## 项目结构
 
@@ -26,7 +26,13 @@ motion-lab/
 ├── src/
 │   ├── components/
 │   │   ├── 3d/              # 3D 场景
-│   │   │   ├── RotatingEarth.tsx      # 旋转地球（程序化生成）
+│   │   │   ├── RotatingEarth.tsx      # 旋转地球（对外组件）
+│   │   │   ├── earth/                 # 地球的真实实现
+│   │   │   │   ├── EarthScene.tsx        # 地表/云层/大气/灯光/星空总装
+│   │   │   │   ├── proceduralEarth.ts    # 程序化 PBR 贴图（albedo/rough/metal/bump/云/夜灯）
+│   │   │   │   ├── Starfield.tsx         # 确定性星空
+│   │   │   │   ├── CameraRig.tsx         # 镜头运动（push-in / orbit ...）
+│   │   │   │   └── PostFX.tsx            # Bloom / Vignette / 景深
 │   │   │   └── CardStack3D.tsx        # 3D 卡片扇面展开
 │   │   ├── charts/          # 数据图表
 │   │   │   ├── SmoothLineChart.tsx    # 丝滑折线图（Catmull-Rom）
@@ -67,6 +73,17 @@ motion-lab/
 2. **真动 > 假动**：3D 自转、丝滑曲线、粒子飘动
 3. **数据驱动**：一份 JSON 描述视频全部内容
 4. **音频同步**：动效跟着字幕/语音同步
+
+### 3D 地球（游戏级画面）
+
+- **PBR 材质**：6 张程序化贴图（albedo / roughness / metalness / bump / 云层 / 夜景灯光），
+  3D 噪声采样球面坐标，**没有经度接缝**
+- **光照**：太阳主光 + 半球补光 + 轮廓光 + 现场生成的 PMREM 环境贴图（**不下载任何 HDRI**）
+- **大气散射**：自定义 GLSL 径向散射，向阳侧发光、背阳侧熄灭
+- **云层与夜景**：云比地表多转 22% 产生视差；背光面显示城市灯光
+- **后处理**：Bloom + Vignette（可选景深）
+- **确定性**：全部随机数走固定种子、全部动画由帧号推导，
+  同一帧重复渲染**逐字节一致**（可复现、不闪烁）
 
 ## 依赖
 

@@ -1,135 +1,88 @@
-# 任务：性能优化（Kimi）
+# 任务：渲染性能（已完成 — 但在任务书预想的地方没找到瓶颈）
 
-## 🎯 任务目标
-
-优化 MotionLab 的渲染性能，确保 1080p 视频渲染时间 < 5 分钟
-
-## 📋 具体工作
-
-### 1. React 性能优化
-
-**使用 `useMemo` 缓存计算结果**：
-```tsx
-// ❌ 错误：每次都重新计算
-const data = computeExpensiveData(props);
-
-// ✅ 正确：只在依赖变化时重新计算
-const data = useMemo(() => computeExpensiveData(props), [props]);
-```
-
-**使用 `React.memo` 优化组件重渲染**：
-```tsx
-// ❌ 错误：每次父组件渲染都重新渲染
-function MyComponent({ data }) {
-  return <div>{data}</div>;
-}
-
-// ✅ 正确：只在 props 变化时重新渲染
-const MyComponent = React.memo(function MyComponent({ data }) {
-  return <div>{data}</div>;
-});
-```
-
-**使用 `useCallback` 缓存函数**：
-```tsx
-// ❌ 错误：每次渲染都创建新函数
-const handleClick = () => { ... };
-
-// ✅ 正确：只在依赖变化时创建新函数
-const handleClick = useCallback(() => { ... }, [deps]);
-```
-
-### 2. Three.js 性能优化
-
-**优化几何体和材质**：
-```tsx
-// ❌ 错误：每次都创建新几何体
-<mesh geometry={new THREE.BoxGeometry(1, 1, 1)} />
-
-// ✅ 正确：复用几何体
-const geometry = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-<mesh geometry={geometry} />
-```
-
-**使用实例化渲染**：
-```tsx
-// 如果有大量相同的物体，使用 InstancedMesh
-const instances = useMemo(() => {
-  const mesh = new THREE.InstancedMesh(geometry, material, count);
-  // 设置实例矩阵
-  return mesh;
-}, []);
-```
-
-### 3. Shader 优化
-
-**优化 shader 代码**：
-- 减少纹理采样次数
-- 使用低精度浮点数（`mediump` 或 `lowp`）
-- 避免复杂的循环和分支
-
-### 4. 渲染优化
-
-**使用 `frameloop="demand"`**：
-```tsx
-// 只在需要时渲染，而不是每帧都渲染
-<Canvas frameloop="demand">
-  <Scene />
-</Canvas>
-```
-
-**使用 `dpr` 控制像素比**：
-```tsx
-// 降低像素比，提高性能
-<Canvas dpr={[1, 1.5]}>
-  <Scene />
-</Canvas>
-```
-
-## 📁 工作范围
-
-**可以修改所有组件**，但要注意：
-- ✅ 优化性能，不改变功能
-- ✅ 不改变视觉效果
-- ✅ 确保向后兼容
-
-**重点关注**：
-- `src/components/3d/`（3D 场景）
-- `src/components/charts/`（图表）
-- `src/components/particles/`（粒子系统）
-- `src/VideoRenderer.tsx`（核心渲染器）
-
-## 📊 性能指标
-
-**目标**：
-- 1080p 视频渲染时间 < 5 分钟
-- 内存占用 < 2GB
-- 无明显卡顿或掉帧
-
-**测试方法**：
-```bash
-npm run render
-# 查看渲染时间和内存占用
-```
-
-## 📝 交付物
-
-1. 优化后的代码文件
-2. 性能测试报告（渲染时间、内存占用）
-3. 简短说明（改了什么、性能提升了多少）
-
-## ⚠️ 注意事项
-
-1. **不要改变视觉效果**：只优化性能，不改变画面
-2. **测试所有组件**：确保没有引入 bug
-3. **向后兼容**：确保现有的 spec 数据仍然可用
-4. **文档说明**：说明性能优化的方法和效果
-
-## 📞 联系方式
-
-完成后，把代码发给用户（晚风徐徐）。
+**状态**：✅ 已完成
+**完成时间**：2026-10-16
 
 ---
 
-**文档版本**：v1.0  
-**最后更新**：2026-10-16
+## 一、任务书原本的要求
+
+> 使用 `useMemo` 缓存计算结果、`React.memo` 优化组件重渲染、`useCallback` 缓存函数、
+> 优化 shader 性能、平衡质量和性能。
+
+## 二、实测结论：瓶颈不在这里
+
+先量了再优化。3D 场景升级后，30s / 1080p（900 帧）渲染耗时 **418.6s**，
+明显超出"< 5 分钟"的验收线。拆开算一下固定开销与单帧开销：
+
+| 测量 | 结果 |
+|------|------|
+| 900 帧全量 | 418.6s |
+| 60 帧 | 109.0s |
+
+解方程：`900c + F = 418.6`，`60c + F = 109.0` → 单帧 `c ≈ 0.37s`，固定开销 `F ≈ 87s`。
+
+- 单帧 0.37s × 900 ≈ **331s**，是主要成本（不是贴图生成那 87s）。
+- `useMemo` / `React.memo` 优化的是 **JS 计算**——而这个场景的成本几乎全在
+  **GPU 光栅化**（全屏 Bloom + 大面积半透明大气球壳 + 1080p 填充）。
+  就算把 JS 开销优化到 0，也救不了这 331s。
+
+## 三、真正的根因：Chromium 退化成软件光栅化
+
+Remotion 默认的 Chromium 后端在 Windows 上跑的是 **SwiftShader（纯 CPU 软件光栅化）**。
+本机明明有 RTX 3060 Laptop GPU，却完全没被用上。
+
+对照实验（同样 60 帧 1080p）：
+
+| 渲染后端 | 60 帧耗时 |
+|----------|-----------|
+| 默认（SwiftShader） | 109.0s |
+| `--gl=angle`（D3D11 硬件加速） | **10.5s** |
+
+**约 10 倍差距。**
+
+## 四、改了什么
+
+`remotion.config.ts` 固定硬件后端：
+
+```ts
+Config.setChromiumOpenGlRenderer("angle");
+```
+
+并加了两个逃生用的脚本：
+
+```powershell
+npm run render:gpu        # 显式走 hardware
+npm run render:software   # 走 swangle（驱动异常时兜底）
+```
+
+## 五、结果
+
+| 指标 | 改前 | 改后 |
+|------|------|------|
+| 30s / 1080p 全量渲染 | 418.6s | **~29s** |
+| 是否满足 < 5 分钟 | ❌ | ✅ |
+
+比升级前那个"简单版本"（26s）只慢约 3 秒，但画面已经是 PBR + 大气散射 + 云层 + 夜景灯光 + Bloom。
+
+## 六、另外做的真实优化
+
+虽然主要瓶颈不在 JS，但这几处确实必要：
+
+1. **贴图生成缓存**：`proceduralEarth.ts` 里按参数做模块级缓存，
+   同一个渲染进程内只生成一次（每个浏览器 Tab 各生成一次，这是固定开销 `F` 的一部分）。
+2. **确定性动画**：自转由 `rotation.y = frame * rotationSpeed` 直接推导，
+   而不是 `useFrame` 里 `+=` 累加。既保证 seek 一致，也避免了每帧的状态依赖。
+3. **可分层关闭**：`quality` 与 `showClouds` / `showNightLights` / `enablePostFx` 等开关，
+   排查问题时可以逐层关掉定位成本。
+
+## 七、留给后续的
+
+- 贴图目前每个 Tab 各生成一次。若要用 `quality: "high"`（2048 宽）渲长片，
+  可以改成离线预生成 PNG + `staticFile()` 加载，把这 87s 固定开销再压掉。
+- 若要更进一步，可调 `--concurrency`（本机 20 逻辑核，当前默认 8x）。
+
+---
+
+**结论一句话**：这个任务的正确答案不是 `useMemo`，而是**换渲染后端**。
+先测量、再优化——否则会在错误的地方省下几毫秒，却漏掉 10 倍。
