@@ -1,0 +1,100 @@
+{
+  "title": "OPC 政策追踪 · 2026",
+  "duration": 30,
+  "resolution": { "width": 1920, "height": 1080 },
+  "fps": 30,
+  "audio": {
+    "subtitles": [
+      { "text": "过去三年", "start": 0.5, "end": 1.5 },
+      { "text": "一人公司从试点到全国推广", "start": 1.5, "end": 3.2 }
+    ]
+  },
+  "shots": [
+    {
+      "id": "shot-1",
+      "startTime": 0,
+      "duration": 10,
+      "camera": {
+        "position": { "x": 0, "y": 0, "z": 100 },
+        "motion": { "type": "push-in", "duration": 8, "easing": "spring" }
+      },
+      "elements": [
+        {
+          "id": "earth-3d",
+          "type": "3d-scene",
+          "component": "RotatingEarth",
+          "position": { "x": 0, "y": 0, "z": 0 },
+          "scale": { "x": 1, "y": 1, "z": 1 },
+          "data": { "rotationSpeed": 0.002 },
+          "animation": {
+            "enter": { "type": "fade", "duration": 1 },
+            "loop": { "type": "rotate", "duration": 20, "repeat": true }
+          }
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "component": "CinematicTitle",
+          "position": { "x": 0, "y": -200, "z": 50 },
+          "data": { "text": "OPC 政策追踪", "fontSize": 72, "animation": "fade-up" },
+          "sync": { "triggerAt": 0.5 }
+        }
+      ],
+      "transition": { "type": "fade-to-black", "duration": 0.5 }
+    },
+    {
+      "id": "shot-2",
+      "startTime": 10,
+      "duration": 10,
+      "camera": {
+        "position": { "x": 0, "y": 0, "z": 100 }
+      },
+      "elements": [
+        {
+          "id": "line-chart",
+          "type": "chart",
+          "component": "SmoothLineChart",
+          "position": { "x": 0, "y": 0, "z": 0 },
+          "data": {
+            "data": [
+              { "label": "2023", "value": 120 },
+              { "label": "2024", "value": 450 },
+              { "label": "2025", "value": 1200 }
+            ],
+            "color": "#4a90e2",
+            "showPoints": true
+          },
+          "animation": {
+            "enter": { "type": "slide", "duration": 0.8 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "shot-3",
+      "startTime": 20,
+      "duration": 10,
+      "camera": {
+        "position": { "x": 0, "y": 0, "z": 100 }
+      },
+      "elements": [
+        {
+          "id": "comparison",
+          "type": "chart",
+          "component": "ComparisonChart",
+          "position": { "x": 0, "y": 0, "z": 0 },
+          "data": {
+            "data": [
+              { "label": "注册数", "left": 120, "right": 1200 },
+              { "label": "就业人数", "left": 350, "right": 2800 },
+              { "label": "营收规模", "left": 80, "right": 950 }
+            ]
+          },
+          "animation": {
+            "enter": { "type": "scale", "duration": 0.6 }
+          }
+        }
+      ]
+    }
+  ]
+}
