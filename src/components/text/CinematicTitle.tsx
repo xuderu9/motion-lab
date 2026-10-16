@@ -48,7 +48,7 @@ export const CinematicTitle: React.FC<CinematicTitleProps> = ({
           opacity: [0, 1],
           split: "character" as const,
           splitStagger: 1,
-          easing: "ease-out" as const,
+          easing: "easeOut" as const,
         };
     }
   };

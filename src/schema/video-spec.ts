@@ -110,7 +110,9 @@ export const ShotSchema = z.object({
   id: z.string(),
   startTime: z.number().min(0),
   duration: z.number().min(0.1),
-  camera: CameraSchema.default({}),
+  // Zod 4：.default() 要求传入「输出类型」，而这里想给的是「输入」默认值（{}，
+  // 由内部 position/rotation 的 default 补齐），所以要用 .prefault()
+  camera: CameraSchema.prefault({}),
   elements: z.array(ElementSchema).default([]),
   transition: TransitionSchema.optional(),
 });
@@ -130,6 +132,14 @@ export const VideoSpecSchema = z.object({
 });
 
 export type VideoSpec = z.infer<typeof VideoSpecSchema>;
+/**
+ * 输入类型：带 .default() 的字段在输入侧是可选的。
+ *
+ * Remotion 的 <Composition /> 在传入 schema 时，defaultProps / component 的
+ * props 必须使用「输入类型」（见 remotion 的 props-if-has-props.d.ts），
+ * 因此组件内部需要用 VideoSpecSchema.parse(props) 补齐默认值。
+ */
+export type VideoSpecInput = z.input<typeof VideoSpecSchema>;
 export type Shot = z.infer<typeof ShotSchema>;
 export type Element = z.infer<typeof ElementSchema>;
 export type Camera = z.infer<typeof CameraSchema>;

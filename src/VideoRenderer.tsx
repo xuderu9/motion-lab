@@ -5,27 +5,35 @@
  */
 
 import React from "react";
-import { Sequence, AbsoluteFill } from "remotion";
+import { Sequence, AbsoluteFill, useVideoConfig } from "remotion";
 import { ThreeCanvas } from "@remotion/three";
-import type { VideoSpec, Shot, Element } from "../schema/video-spec";
+import { VideoSpecSchema } from "./schema/video-spec";
+import type { VideoSpec, VideoSpecInput, Shot, Element } from "./schema/video-spec";
 
 // 导入组件
-import { RotatingEarth } from "./3d/RotatingEarth";
-import { CardStack3D } from "./3d/CardStack3D";
-import { SmoothLineChart } from "./charts/SmoothLineChart";
-import { BarChart } from "./charts/BarChart";
-import { ComparisonChart } from "./charts/ComparisonChart";
-import { DonutChart } from "./charts/DonutChart";
-import { CinematicTitle } from "./text/CinematicTitle";
-import { Fireflies } from "./particles/Fireflies";
+import { RotatingEarth } from "./components/3d/RotatingEarth";
+import { CardStack3D } from "./components/3d/CardStack3D";
+import { SmoothLineChart } from "./components/charts/SmoothLineChart";
+import { BarChart } from "./components/charts/BarChart";
+import { ComparisonChart } from "./components/charts/ComparisonChart";
+import { DonutChart } from "./components/charts/DonutChart";
+import { CinematicTitle } from "./components/text/CinematicTitle";
+import { Fireflies } from "./components/particles/Fireflies";
 
-interface VideoRendererProps {
-  spec: VideoSpec;
-}
+/**
+ * 注意：这里必须用 type 而不是 interface。
+ * Remotion 的 <Composition /> 会把 props 约束到 Record<string, unknown>，
+ * 而 TS 只给 type alias 隐式索引签名，interface 会推断失败。
+ *
+ * props 直接就是「视频规格」本身（而不是 { spec } 包一层），
+ * 这样 <Composition schema={VideoSpecSchema} /> 才能把字段暴露给 Studio 编辑。
+ */
+type VideoRendererProps = VideoSpecInput;
 
 // 渲染单个元素
 const RenderElement: React.FC<{ element: Element }> = ({ element }) => {
   const { component, data, position } = element;
+  const { width, height } = useVideoConfig();
 
   const style: React.CSSProperties = {
     position: "absolute",
@@ -39,8 +47,8 @@ const RenderElement: React.FC<{ element: Element }> = ({ element }) => {
       return (
         <div style={{ ...style, width: "100%", height: "100%" }}>
           <ThreeCanvas
-            width={1920}
-            height={1080}
+            width={width}
+            height={height}
             camera={{ position: [0, 0, 5], fov: 50 }}
           >
             <RotatingEarth
@@ -155,7 +163,10 @@ const RenderShot: React.FC<{ shot: Shot; fps: number }> = ({ shot, fps }) => {
   );
 };
 
-export const VideoRenderer: React.FC<VideoRendererProps> = ({ spec }) => {
+export const VideoRenderer: React.FC<VideoRendererProps> = (rawSpec) => {
+  // 用 schema 补齐所有 .default()，下游组件拿到的永远是完整的 VideoSpec
+  const spec: VideoSpec = VideoSpecSchema.parse(rawSpec);
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
       {spec.shots.map((shot) => (
