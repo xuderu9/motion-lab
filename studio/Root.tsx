@@ -2,6 +2,7 @@ import React from "react";
 import { LiveUIRoot } from "./LiveUI";
 import { CompositeRoot } from "./Composite";
 import { ShotRoot } from "./shot/ShotRenderer";
+import { FilmRoot } from "./film/Film";
 
 /**
  * studio 合成总表
@@ -14,6 +15,7 @@ import { ShotRoot } from "./shot/ShotRenderer";
  */
 export const Root: React.FC = () => (
   <>
+    <FilmRoot />
     <ShotRoot />
     <CompositeRoot />
     <LiveUIRoot />

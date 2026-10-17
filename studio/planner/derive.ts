@@ -105,7 +105,8 @@ function buildDoc(text: string): DocContent {
     subtitle: `${paragraphs.length} 段 · 约 ${Math.round(Array.from(text).length / 4)} 秒`,
     breadcrumb: "讲稿 / 本段",
     paragraphs,
-    outline: paragraphs.slice(0, 6).map((p, i) => `${i + 1}. ${titleOf(p, 10)}`),
+    // 不要再自己加「1. 2. 3.」——版式本身已经画了序号，会变成「01 1. 先说数据」
+    outline: paragraphs.slice(0, 6).map((p) => titleOf(p, 10)),
     tags: paragraphs.slice(0, 6).map((p) => titleOf(p, 5)),
   };
 }
@@ -208,6 +209,9 @@ export function deriveContent(
   text: string,
   start: number,
   warn: (kind: string, detail: string) => void,
+  /** 上下文（本段 + 前后各若干段）。只给 doc 用：
+   *  本段只有两句时，阅读页会不停循环同一句，看起来像渲染坏了。 */
+  context?: string,
 ): LayoutContent {
   switch (layout) {
     case "chart":
@@ -222,7 +226,8 @@ export function deriveContent(
       return buildMap(text, warn);
     case "doc":
     default:
-      return buildDoc(text);
+      // 优先用上下文长文，只有上下文缺失时才退回本段
+      return buildDoc(context && Array.from(context).length > Array.from(text).length * 1.5 ? context : text);
   }
 }
 

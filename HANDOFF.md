@@ -82,6 +82,7 @@ motion-lab/
 │  ├─ plates.json               环境注册表：4 个已验证环境（quad + exposure）
 │  ├─ PLATE-SPEC.md             背景板硬阈值 + 曝光公式 + 16 张候选实测
 │  ├─ M3-DESIGN.md              分镜规划器施工图 + §10 实现中发现的问题
+│  ├─ film/Film.tsx             ← M4：把 plan.json 拼成一条片子
 │  ├─ Composite.tsx             M1 之前的硬编码版（回归对照，M2 结束删）
 │  ├─ LiveUI.tsx                LiveUI 参考实现（M2 结束删）
 │  ├─ M1-DESIGN.md              施工图 + 验收判据 + §9 实测结果与判据修正
@@ -110,6 +111,10 @@ python studio\tools\check-plan.py --plan out/film/plan.json --srt studio/shots/s
 
 # 画布边界溢出（品红探针抓不到的那一类）
 python studio\tools\check-canvas-overflow.py --dir out/m2-dsh --shots-json studio/shots/m2.json
+
+# M4：一条 plan.json 直接渲成片 + 拼接验收
+npx remotion render studio/index.ts Film out/film/film.mp4 --props=out/film/plan-18.json --concurrency=8
+python studio\tools\check-film.py --film out/film/film.mp4 --plan out/film/plan-18.json
 
 # 单镜头
 npx remotion still studio/index.ts Shot out/x.png --frame=72 --props=out/m1/props/s01-doc-fullbleed.json
@@ -152,7 +157,7 @@ npx remotion still studio/index.ts Shot out/x.png --frame=72 --props=out/m1/prop
 | ~~D1~~ | ~~M1 组件化 + 声明式渲染器 + doc/chart 各 3 变体~~ | **已完成，8/8 PASS** |
 | ~~D2~~ | ~~M2：code/map/timeline/cards 四版式各 3 变体~~ | **已完成，dsh 复核 8/8 PASS** |
 | ~~D3~~ | ~~M3 分镜规划器~~ | **已完成，两本真 SRT 全部验收通过** |
-| D4 | M4 多镜头拼接 + 转场 | 第一条端到端片子 |
+| ~~D4~~ | ~~M4 多镜头拼接~~ | **已完成：175s 成片 5/5 通过** |
 | D5 | M5 字幕 + 音频双路 | 完整成片 |
 | D6 | M6 批量 + 真实 SRT 跑通 | 产线可用 |
 | D7 | 缓冲 | 交付 |

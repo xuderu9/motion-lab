@@ -88,7 +88,11 @@ for (let i = 0; i < segs.length; i++) {
   const shotId = `s${String(i + 1).padStart(2, "0")}-${a.layout}-v${a.variant}`;
   const warn = (kind: string, detail: string) => warnings.push({ shotId, kind, detail });
 
-  const content = deriveContent(a.layout, seg.text, seg.start - base, warn);
+  // 上下文：本段前后各 2 段。doc 版式需要足够多的字才不会循环重复
+  const ctxFrom = Math.max(0, i - 2);
+  const ctxTo = Math.min(segs.length, i + 3);
+  const context = segs.slice(ctxFrom, ctxTo).map((x) => x.text).join("");
+  const content = deriveContent(a.layout, seg.text, seg.start - base, warn, context);
   const envEntry = pickEnvironment(reg, a.layout, a.theme, i);
   const durationInFrames = Math.max(1, Math.round((seg.end - seg.start) * fps));
 
