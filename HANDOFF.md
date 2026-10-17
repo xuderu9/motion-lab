@@ -97,6 +97,10 @@ npx remotion still  studio/index.ts Composite out/f.png --frame=120
 
 ## 8. 待办（一周计划）
 
+> **M1 的完整施工图在 [`studio/M1-DESIGN.md`](./studio/M1-DESIGN.md)** ——
+> 含 ShotSpec 数据结构、三层组件结构、主题 token、变体分发方式、7 条验收标准、三个必须避开的设计陷阱。
+> 动手做 M1 之前必读。
+
 | 天 | 内容 | 验收 |
 |---|---|---|
 | D1 | M1 组件化 + 声明式渲染器骨架 + 1 版式 3 变体 | 抽象验证通过 |
