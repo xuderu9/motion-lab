@@ -1,5 +1,13 @@
 # MotionLab — 面向 AI Agent 的工作说明
 
+> **两个必读入口（任何会话开始先看这两份）：**
+> - **[HANDOFF.md](./HANDOFF.md)** — 项目目标、人类已确认的决策、参考片量化基准、关键常量、一周计划。
+>   上下文被压缩后或换新会话，读这一份就能冷启动。
+> - **[COLLAB.md](./COLLAB.md)** — 多 Agent 协作的「当前锁」。不在锁里就只能读不能写；
+>   收工前更新它并 commit，消息前缀 `[codex]` / `[dsh]`。
+>
+> 另一份值得读的：[studio/PLAYBOOK.md](./studio/PLAYBOOK.md) — 交付流程规则与踩坑记录。
+
 > 本文档描述的是**代码里真实存在的东西**。
 > 上一版 AGENTS.md 写错的目录结构和"已完成"清单，是后续多个 AI 反复踩坑的根源
 > （比如它说 3D 场景在 `src/components/3d/Scene3D/`，实际在 `src/components/Scene3D/`），
