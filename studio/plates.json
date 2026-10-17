@@ -1,0 +1,50 @@
+{
+  "_note": "环境注册表。每个 env 的 quad / exposure 都由 plate-prep.ps1 实测推导，换板子请重新跑，不要手改数字。",
+  "default": "desk-night",
+  "environments": [
+    {
+      "name": "desk-night",
+      "label": "夜景桌面",
+      "prefer": ["chart", "cards"],
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.14
+      }
+    },
+    {
+      "name": "window-day",
+      "label": "白天窗边",
+      "prefer": ["code", "timeline"],
+      "env": {
+        "src": "plates/window-day.png",
+        "quad": [[377, 254], [919, 196], [1101, 688], [580, 821]],
+        "cornerRadius": 76,
+        "exposure": 0.749
+      }
+    },
+    {
+      "name": "dusk-study",
+      "label": "黄昏书房",
+      "prefer": ["doc", "map"],
+      "env": {
+        "src": "plates/dusk-study.png",
+        "quad": [[496, 524], [1032, 467], [1161, 852], [586, 933]],
+        "cornerRadius": 76,
+        "exposure": 1.367
+      }
+    },
+    {
+      "name": "office-bright",
+      "label": "明亮办公室",
+      "prefer": ["cards", "chart"],
+      "env": {
+        "src": "plates/office-bright.png",
+        "quad": [[888, 378], [1424, 364], [1298, 833], [744, 778]],
+        "cornerRadius": 76,
+        "exposure": 0.557
+      }
+    }
+  ]
+}
