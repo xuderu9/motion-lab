@@ -438,6 +438,100 @@ export function draw(g: CanvasRenderingContext2D, frame: number, fps: number) {
     g.fillText(`${Math.round(prog * 100)}%`, 1290, qyy + 17);
   }
 
+  // ---------- 浅色文档页：与深色工作区交替 ----------
+  // 参考片屏幕区实测平均亮度 109.9，而深色界面只有 ~41。
+  // 参考片是"深色工作区 ↔ 浅色文档"交替的，这既抬了亮度，也是那些 10~15
+  // 峰值帧差的真正来源（整屏深↔浅切换）。
+  const cyc2 = t % 4.8;
+  let L = 0;
+  if (cyc2 < 2.28) L = 0;
+  else if (cyc2 < 2.4) L = easeOut((cyc2 - 2.28) / 0.12);
+  else if (cyc2 < 4.68) L = 1;
+  else L = 1 - easeOut((cyc2 - 4.68) / 0.12);
+
+  if (L > 0.001) {
+    g.globalAlpha = L;
+    g.fillStyle = "#f1f4f8";
+    g.fillRect(-260, -260, W + 520, H + 520);
+
+    // 顶栏
+    g.fillStyle = "rgba(20,35,55,0.055)";
+    g.fillRect(-260, -260, W + 520, 74 + 260);
+    g.fillStyle = "#1b2a3d";
+    g.font = `600 26px ${FONT}`;
+    g.fillText("Docs", 40, 48);
+    g.fillStyle = "rgba(27,42,61,0.45)";
+    g.font = `400 16px ${FONT}`;
+    g.fillText("结构化知识库 / router.md", 130, 46);
+
+    // 标题
+    g.fillStyle = "#12202f";
+    g.font = `700 40px ${FONT}`;
+    g.fillText("给模型足够的指引", 40, 150);
+    g.fillStyle = "rgba(27,42,61,0.55)";
+    g.font = `400 17px ${FONT}`;
+    g.fillText("更新于 " + Math.floor(t) + " 秒前 · 1,0" + (Math.floor(t) % 10) + " 次浏览", 40, 182);
+
+    // 正文：真实文字，连续滚动（大面积运动，避免冻结帧）
+    const scrollY = (t * 300) % 34;
+    const hl = (t / 0.5) % 14;
+    const hlI = Math.floor(hl);
+    const hlY = 236 + hlI * 34 - scrollY + easeOut(hl - hlI) * 34;
+    if (hlY > 196 && hlY < 1010) {
+      g.fillStyle = "rgba(70,120,200,0.13)";
+      rr(g, 34, hlY - 20, 930, 30, 6);
+      g.fill();
+    }
+    const doc = [
+      "router that points to supporting docs and scripts.",
+      "Give the model enough guidance to know where to look,",
+      "without forcing it to read things that don't matter.",
+      "第三，很多 skill 被写成详尽的迭代手册或配方。",
+      "模型现在对细微差别和歧义的理解好了很多，",
+      "所以当指引足够具体时，反而会限制结果。",
+      "Repo skills 也会指导其他贡献者的 agent，",
+      "而他们可能用不同的模型。",
+      "所以要想清楚：哪些模型会用到你留下的说明。",
+      "若目标模型是 Sol 或 Luna，过度约束尤其明显。",
+      "因此把说明写成「路标」而不是「手册」。",
+      "让 agent 自己决定读多少、读哪一部分。",
+      "这也是 AGENTS.md 与 skill 的分工所在。",
+      "一条好的指引，通常只指向入口，不展开全部。",
+    ];
+    for (let i = -1; i < 30; i++) {
+      const y = 230 + i * 34 - scrollY;
+      if (y < 200 || y > 1010) continue;
+      g.fillStyle = "rgba(24,38,56,0.78)";
+      g.font = `400 19px ${FONT}`;
+      g.fillText(doc[((i % doc.length) + doc.length) % doc.length], 46, y);
+    }
+
+    // 右侧：浅底卡片 + 深色图表（持续变化）
+    g.fillStyle = "rgba(15,30,50,0.05)";
+    rr(g, 1010, 210, 550, 250, 14);
+    g.fill();
+    g.fillStyle = "rgba(27,42,61,0.6)";
+    g.font = `500 15px ${FONT}`;
+    g.fillText("引用分布", 1032, 242);
+    for (let i = 0; i < 12; i++) {
+      const hgt = 26 + 86 * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 0.7));
+      g.fillStyle = i % 3 === 0 ? "rgba(34,120,220,0.85)" : "rgba(120,150,185,0.55)";
+      rr(g, 1032 + i * 43, 420 - hgt, 26, hgt, 5);
+      g.fill();
+    }
+
+    // 底部：一条横向进度条持续走
+    const pw2 = ((t * 0.35) % 1) * 1490;
+    g.fillStyle = "rgba(15,30,50,0.07)";
+    rr(g, 40, 1000, 1490, 12, 6);
+    g.fill();
+    g.fillStyle = "rgba(34,120,220,0.8)";
+    rr(g, 40, 1000, Math.max(8, pw2), 12, 6);
+    g.fill();
+
+    g.globalAlpha = 1;
+  }
+
   // ---------- 大面积掠光 ----------
   // 参考片的"底噪"约 1.5，靠小元素移动到不了 —— 必须有**大范围**的低幅度变化。
   // 一条横扫全屏的柔光能做到：面积大、幅度小、永不停止。
