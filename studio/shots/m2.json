@@ -1,0 +1,475 @@
+{
+  "note": "M2 验收数据：code / map / timeline / cards 四版式 × 3 变体 = 12 个镜头。同一份组件代码，只改这份 JSON 就能换画面。",
+  "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+  "shots": [
+    {
+      "id": "m2-code-v0",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "code",
+      "variant": 0,
+      "theme": "light",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "code",
+        "heading": "把政策条款接进数据管线",
+        "breadcrumb": "opc-hub / pipeline",
+        "language": "TypeScript",
+        "files": [
+          { "name": "fetch-policy.ts", "status": "M" },
+          { "name": "normalize.ts", "status": "M" },
+          { "name": "schema.ts", "status": "A" },
+          { "name": "index.ts", "status": "?" }
+        ],
+        "code": [
+          "import { fetchPolicy } from './fetch-policy';",
+          "import { normalize } from './normalize';",
+          "",
+          "// 一条政策 = 一个可追溯的记录",
+          "export async function syncPolicy(id: string) {",
+          "  const raw = await fetchPolicy(id);",
+          "  const clean = normalize(raw);",
+          "",
+          "  if (!clean.effectiveAt) {",
+          "    throw new Error('缺少生效日期');",
+          "  }",
+          "",
+          "  return {",
+          "    id: clean.id,",
+          "    title: clean.title,",
+          "    level: clean.level,",
+          "    region: clean.region,",
+          "    effectiveAt: clean.effectiveAt,",
+          "    source: clean.sourceUrl,",
+          "  };",
+          "}",
+          "",
+          "// 批量同步：按发布时间倒序",
+          "export async function syncAll(ids: string[]) {",
+          "  return Promise.all(ids.map(syncPolicy));",
+          "}",
+          ""
+        ],
+        "statusRight": "已同步 1,284 条"
+      },
+      "overlay": {
+        "kicker": "M2 · 代码窗口 A",
+        "title": "全幅编辑器",
+        "bullets": ["代码连续上滚 + 活动行高亮", "右侧 minimap 与状态栏行列号", "标签页随内容切换"]
+      }
+    },
+    {
+      "id": "m2-code-v1",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "code",
+      "variant": 1,
+      "theme": "deep-blue",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "code",
+        "heading": "字段校验与口径统一",
+        "breadcrumb": "opc-hub / schema",
+        "language": "TypeScript",
+        "files": [
+          { "name": "policy.ts", "status": "M" },
+          { "name": "region.ts", "status": "A" },
+          { "name": "level.ts", "status": "M" },
+          { "name": "money.ts", "status": "?" },
+          { "name": "date.ts", "status": "?" },
+          { "name": "source.ts", "status": "M" }
+        ],
+        "code": [
+          "import { z } from 'zod';",
+          "",
+          "export const PolicySchema = z.object({",
+          "  id: z.string(),",
+          "  title: z.string().min(4),",
+          "  level: z.enum(['national', 'province', 'city']),",
+          "  region: z.string(),",
+          "  effectiveAt: z.string().datetime(),",
+          "  amount: z.number().nonnegative().optional(),",
+          "  sourceUrl: z.string().url(),",
+          "});",
+          "",
+          "export type Policy = z.infer<typeof PolicySchema>;",
+          "",
+          "export function parsePolicy(raw: unknown): Policy {",
+          "  const r = PolicySchema.safeParse(raw);",
+          "  if (!r.success) {",
+          "    throw new Error(r.error.message);",
+          "  }",
+          "  return r.data;",
+          "}",
+          ""
+        ],
+        "statusRight": "校验通过率 99.2%"
+      },
+      "overlay": {
+        "kicker": "M2 · 代码窗口 B",
+        "title": "文件树 + 编辑器",
+        "bullets": ["左侧文件树滚动、活动文件指示条滑动", "右侧代码同步滚动 + diff 标记", "编辑器底部进度"]
+      }
+    },
+    {
+      "id": "m2-code-v2",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "code",
+      "variant": 2,
+      "theme": "cool-teal",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "code",
+        "heading": "一键生成当日政策简报",
+        "breadcrumb": "opc-hub / build",
+        "language": "Node",
+        "files": [{ "name": "build.ts", "status": "M" }],
+        "code": [
+          "import { renderBrief } from './render';",
+          "import { loadPolicies } from './store';",
+          "",
+          "const rows = await loadPolicies({ days: 1 });",
+          "const brief = await renderBrief(rows);",
+          "",
+          "await brief.write('out/brief.mp4');",
+          "console.log('done', rows.length);"
+        ],
+        "terminal": [
+          "$ node build.ts --date today",
+          "loading policies ......... 1,284",
+          "grouping by region ...... 31",
+          "ranking by impact ...... ok",
+          "rendering frames ........ 900 / 900",
+          "encoding h264 ........... ok",
+          "writing out/brief.mp4 ... 18.4 MB",
+          "done in 26.9s"
+        ],
+        "statusRight": "构建成功"
+      },
+      "overlay": {
+        "kicker": "M2 · 代码窗口 C",
+        "title": "代码 + 终端分屏",
+        "bullets": ["终端日志逐行出现", "块光标闪烁、计时器跳动", "构建进度条持续推进"]
+      }
+    },
+    {
+      "id": "m2-map-v0",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "map",
+      "variant": 0,
+      "theme": "light",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "map",
+        "heading": "政策从试点走向全国",
+        "subtitle": "2021 — 2026 · 推广路径",
+        "places": [
+          { "name": "深圳", "x": 0.34, "y": 0.66, "note": "首个试点" },
+          { "name": "杭州", "x": 0.52, "y": 0.46, "note": "数字化样板" },
+          { "name": "成都", "x": 0.26, "y": 0.44, "note": "西部枢纽" },
+          { "name": "北京", "x": 0.62, "y": 0.22, "note": "政策发布" },
+          { "name": "上海", "x": 0.60, "y": 0.50, "note": "制度创新" }
+        ],
+        "routes": [
+          { "from": 0, "to": 1, "label": "试点复制" },
+          { "from": 1, "to": 3, "label": "上报采纳" },
+          { "from": 1, "to": 2, "label": "区域协同" }
+        ],
+        "stats": [
+          { "label": "覆盖城市", "value": "31" },
+          { "label": "累计政策", "value": "1,284" }
+        ]
+      },
+      "overlay": {
+        "kicker": "M2 · 地图航线 A",
+        "title": "全幅航线生长",
+        "bullets": ["航线逐段生长 + 沿线光点飞行", "地点脉冲环持续呼吸", "读数与底部进度"]
+      }
+    },
+    {
+      "id": "m2-map-v1",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "map",
+      "variant": 1,
+      "theme": "warm-sand",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "map",
+        "heading": "三座城市的制度差异",
+        "subtitle": "对照清单",
+        "places": [
+          { "name": "杭州", "x": 0.30, "y": 0.34, "note": "允许一址多照" },
+          { "name": "苏州", "x": 0.58, "y": 0.26, "note": "税收返还试点" },
+          { "name": "佛山", "x": 0.52, "y": 0.56, "note": "制造业配套" },
+          { "name": "青岛", "x": 0.44, "y": 0.20, "note": "跨境结算" },
+          { "name": "长沙", "x": 0.38, "y": 0.50, "note": "人才补贴" }
+        ],
+        "routes": [
+          { "from": 0, "to": 1, "label": "互认" },
+          { "from": 1, "to": 2, "label": "联动" }
+        ],
+        "stats": [{ "label": "对照城市", "value": "5" }]
+      },
+      "overlay": {
+        "kicker": "M2 · 地图航线 B",
+        "title": "列表 + 局部地图",
+        "bullets": ["左侧地点列表活动行滑动", "右侧局部航线生长", "扫描十字横竖平移"]
+      }
+    },
+    {
+      "id": "m2-map-v2",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "map",
+      "variant": 2,
+      "theme": "deep-blue",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "map",
+        "heading": "三段式落地节奏",
+        "subtitle": "申报 → 审核 → 兑现",
+        "places": [
+          { "name": "企业", "x": 0.22, "y": 0.62 },
+          { "name": "区县", "x": 0.58, "y": 0.40 },
+          { "name": "市级", "x": 0.80, "y": 0.66 },
+          { "name": "省级", "x": 0.44, "y": 0.24 }
+        ],
+        "routes": [
+          { "from": 0, "to": 1, "label": "第 1 段" },
+          { "from": 1, "to": 2, "label": "第 2 段" },
+          { "from": 2, "to": 3, "label": "第 3 段" }
+        ],
+        "stats": [{ "label": "平均时长", "value": "21 天" }]
+      },
+      "overlay": {
+        "kicker": "M2 · 地图航线 C",
+        "title": "三张并排小地图",
+        "bullets": ["三张图各自扫描线、航线生长", "底部行程带刻度滚动 + 游标", "段落标签与读数"]
+      }
+    },
+    {
+      "id": "m2-timeline-v0",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "timeline",
+      "variant": 0,
+      "theme": "light",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "timeline",
+        "heading": "一人公司政策的四个节点",
+        "subtitle": "2019 — 2026",
+        "events": [
+          { "time": "2019", "title": "概念提出", "body": "首次在地方文件中出现，尚无配套细则。", "tag": "起点" },
+          { "time": "2021", "title": "试点落地", "body": "三地先行，允许一址多照与弹性用工。", "tag": "试点" },
+          { "time": "2023", "title": "省级推广", "body": "审批流程压缩，登记时间从 5 天降到 1 天。", "tag": "推广" },
+          { "time": "2025", "title": "全国并轨", "body": "统一口径，跨省互认开始实施。", "tag": "并轨" },
+          { "time": "2026", "title": "配套完善", "body": "税收、社保、融资三条线同步跟进。", "tag": "完善" }
+        ]
+      },
+      "overlay": {
+        "kicker": "M2 · 时间轴 A",
+        "title": "横向主时间轴",
+        "bullets": ["播放头横移 + 轴上刻度左移", "最近事件卡高亮切换", "轴节点脉冲"]
+      }
+    },
+    {
+      "id": "m2-timeline-v1",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "timeline",
+      "variant": 1,
+      "theme": "warm-sand",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "timeline",
+        "heading": "办理流程的五个阶段",
+        "subtitle": "从提交到兑现",
+        "events": [
+          { "time": "01", "title": "材料准备", "body": "身份证明、经营场所证明与经营范围说明，三份材料即可。", "tag": "1 天" },
+          { "time": "02", "title": "线上提交", "body": "统一入口提交，系统自动校验字段完整性。", "tag": "即时" },
+          { "time": "03", "title": "形式审查", "body": "区县窗口核对材料，缺项一次性告知。", "tag": "3 天" },
+          { "time": "04", "title": "实质审核", "body": "涉及许可的事项转主管部门，并联审批。", "tag": "10 天" },
+          { "time": "05", "title": "结果送达", "body": "电子证照即时下发，纸质件可邮寄。", "tag": "2 天" }
+        ]
+      },
+      "overlay": {
+        "kicker": "M2 · 时间轴 B",
+        "title": "纵向事件流",
+        "bullets": ["事件流纵向滚动、活动节点脉冲", "右侧详情随高亮切换", "阅读进度与光标"]
+      }
+    },
+    {
+      "id": "m2-timeline-v2",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "timeline",
+      "variant": 2,
+      "theme": "cool-teal",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "timeline",
+        "heading": "六条配套政策的推进节奏",
+        "subtitle": "按季度排期",
+        "events": [
+          { "time": "Q1", "title": "登记便利化", "tag": "进行中" },
+          { "time": "Q1", "title": "一址多照", "tag": "已完成" },
+          { "time": "Q2", "title": "弹性用工", "tag": "进行中" },
+          { "time": "Q2", "title": "社保衔接", "tag": "排期中" },
+          { "time": "Q3", "title": "税收核定", "tag": "排期中" },
+          { "time": "Q4", "title": "融资支持", "tag": "排期中" }
+        ]
+      },
+      "overlay": {
+        "kicker": "M2 · 时间轴 C",
+        "title": "轨道式排期",
+        "bullets": ["竖向播放头横扫、条形按进度填充", "顶部刻度横向滚动", "活动轨道高亮"]
+      }
+    },
+    {
+      "id": "m2-cards-v0",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "cards",
+      "variant": 0,
+      "theme": "light",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "cards",
+        "heading": "六类可落地的政策工具",
+        "subtitle": "按使用频率排序",
+        "cards": [
+          { "title": "登记便利化", "body": "线上一窗办理，材料一次提交。", "tag": "高频", "value": "1 天" },
+          { "title": "经营场所", "body": "允许一址多照与集群注册。", "tag": "场地", "value": "0 成本" },
+          { "title": "用工弹性", "body": "非全日制与项目制用工并行。", "tag": "人力", "value": "3 类" },
+          { "title": "税收核定", "body": "小规模纳税人核定征收。", "tag": "财税", "value": "1%" },
+          { "title": "融资支持", "body": "信用贷与贴息组合。", "tag": "资金", "value": "50 万" },
+          { "title": "社保衔接", "body": "跨省转移接续全程网办。", "tag": "保障", "value": "秒办" }
+        ],
+        "tags": ["登记", "场地", "用工", "财税", "融资", "社保", "合规"]
+      },
+      "overlay": {
+        "kicker": "M2 · 卡片墙 A",
+        "title": "三列瀑布流",
+        "bullets": ["三列异步纵向漂移", "聚光灯跨列移动", "每张卡折线呼吸"]
+      }
+    },
+    {
+      "id": "m2-cards-v1",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "cards",
+      "variant": 1,
+      "theme": "warm-sand",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "cards",
+        "heading": "一组关键数字",
+        "subtitle": "2026 年一季度",
+        "cards": [
+          { "title": "一人公司新增登记", "body": "同比增长 42%，连续六个季度上升。", "tag": "总量", "value": "38,412" },
+          { "title": "平均办理时长", "body": "从 5.2 天压缩到 1.1 天。", "tag": "效率", "value": "1.1 天" },
+          { "title": "跨省互认城市", "body": "长三角与珠三角率先并轨。", "tag": "范围", "value": "31" },
+          { "title": "政策兑现率", "body": "申报到兑现全链路可追踪。", "tag": "兑现", "value": "92%" },
+          { "title": "线上办理占比", "body": "移动端成为主入口。", "tag": "渠道", "value": "87%" }
+        ],
+        "tags": ["登记", "效率", "互认", "兑现", "渠道"]
+      },
+      "overlay": {
+        "kicker": "M2 · 卡片墙 B",
+        "title": "大卡 + 2×2 网格",
+        "bullets": ["大卡折线与进度条持续变化", "2×2 网格高亮轮转", "数字与标签层级更清晰"]
+      }
+    },
+    {
+      "id": "m2-cards-v2",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "cards",
+      "variant": 2,
+      "theme": "deep-blue",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.20
+      },
+      "content": {
+        "kind": "cards",
+        "heading": "政策工具轮播",
+        "subtitle": "逐项展开",
+        "cards": [
+          { "title": "登记便利化", "body": "一窗受理、一次提交、即时出照。", "tag": "01", "value": "1 天" },
+          { "title": "一址多照", "body": "同一地址可登记多个经营主体。", "tag": "02", "value": "0 成本" },
+          { "title": "弹性用工", "body": "项目制与非全日制并行。", "tag": "03", "value": "3 类" },
+          { "title": "税收核定", "body": "符合条件可申请核定征收。", "tag": "04", "value": "1%" },
+          { "title": "融资支持", "body": "信用贷 + 财政贴息组合。", "tag": "05", "value": "50 万" }
+        ],
+        "tags": ["登记", "场地", "用工", "财税", "融资"]
+      },
+      "overlay": {
+        "kicker": "M2 · 卡片墙 C",
+        "title": "横向轮播带",
+        "bullets": ["轮播带连续横移、两侧卡片探出", "中间卡聚焦框呼吸", "指示点轮转"]
+      }
+    }
+  ]
+}

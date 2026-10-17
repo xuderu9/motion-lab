@@ -25,3 +25,6 @@ Thumbs.db
 
 # TypeScript 增量编译
 *.tsbuildinfo
+
+# Python 缓存
+__pycache__/

@@ -124,14 +124,77 @@ export type DocContent = {
   tags?: string[];
 };
 
-export type LayoutContent = ChartContent | DocContent;
+// ---------------------------------------------------------------------------
+// M2 版式内容（code / map / timeline / cards）
+//
+// 结构与 doc / chart 一致：**只描述数据**，不描述排布。
+// 同一个 content 交给 3 个变体，会得到 3 种排布完全不同的画面。
+// ---------------------------------------------------------------------------
+
+/** 代码窗口：文件树 + 代码行 + 终端输出 */
+export type CodeContent = {
+  kind: "code";
+  heading: string;
+  subtitle?: string;
+  breadcrumb?: string;
+  /** 右上角标签，如 "TypeScript" */
+  language?: string;
+  /** 左侧文件树 / 顶部标签页 */
+  files: { name: string; status?: "M" | "A" | "D" | "?" }[];
+  /** 代码行。variant 0/1 直接按行绘制；缩进用前导空格表达 */
+  code: string[];
+  /** 终端输出行（variant 2 下半屏） */
+  terminal?: string[];
+  /** 底部状态栏右端文字 */
+  statusRight?: string;
+};
+
+/** 地图上的一个地点，x/y 是 0~1 归一化坐标 */
+export type MapPlace = { name: string; x: number; y: number; note?: string };
+
+/** 地图航线：routes 用 places 的下标连接 */
+export type MapContent = {
+  kind: "map";
+  heading: string;
+  subtitle?: string;
+  places: MapPlace[];
+  routes: { from: number; to: number; label?: string }[];
+  /** 左上/底部的读数，如 {label:"总里程", value:"3,142 km"} */
+  stats?: { label: string; value: string }[];
+};
+
+/** 时间轴叙事：一组带时间的事件 */
+export type TimelineContent = {
+  kind: "timeline";
+  heading: string;
+  subtitle?: string;
+  events: { time: string; title: string; body?: string; tag?: string }[];
+};
+
+/** 卡片素材墙 */
+export type CardsContent = {
+  kind: "cards";
+  heading: string;
+  subtitle?: string;
+  cards: { title: string; body: string; tag: string; value?: string }[];
+  /** 底部/轮播带上的标签 */
+  tags?: string[];
+};
+
+export type LayoutContent =
+  | ChartContent
+  | DocContent
+  | CodeContent
+  | MapContent
+  | TimelineContent
+  | CardsContent;
 
 // ---------------------------------------------------------------------------
 // 版式分发表
 // ---------------------------------------------------------------------------
 
 /** M1 = doc | chart；M2 追加 code | map | timeline | cards */
-export type LayoutName = "doc" | "chart";
+export type LayoutName = "doc" | "chart" | "code" | "map" | "timeline" | "cards";
 
 /** 同版式的第 1/2/3 种**排布**（不是配色） */
 export type Variant = 0 | 1 | 2;
@@ -201,7 +264,7 @@ export type ShotSpec = {
 // 运行时校验
 // ---------------------------------------------------------------------------
 
-const LAYOUTS: LayoutName[] = ["doc", "chart"];
+const LAYOUTS: LayoutName[] = ["doc", "chart", "code", "map", "timeline", "cards"];
 const THEMES: ThemeName[] = ["light", "deep-blue", "warm-sand", "cool-teal"];
 
 /**
@@ -238,11 +301,33 @@ export function validateSpec(raw: unknown): ShotSpec {
   if (c.kind !== s.layout) fail(`content.kind (${c.kind}) 必须与 layout (${s.layout}) 一致`);
   if (typeof c.heading !== "string" || !c.heading) fail("content.heading 必须是非空字符串");
 
-  if (c.kind === "doc") {
-    if (!Array.isArray(c.paragraphs) || c.paragraphs.length === 0) fail("doc.paragraphs 必须是非空数组");
-  } else {
-    if (!Array.isArray(c.series) || c.series.length < 3) fail("chart.series 至少 3 条");
-    if (!c.metric || typeof c.metric.value !== "number") fail("chart.metric.value 必须是数字");
+  switch (c.kind) {
+    case "doc":
+      if (!Array.isArray(c.paragraphs) || c.paragraphs.length === 0) fail("doc.paragraphs 必须是非空数组");
+      break;
+    case "chart":
+      if (!Array.isArray(c.series) || c.series.length < 3) fail("chart.series 至少 3 条");
+      if (!c.metric || typeof c.metric.value !== "number") fail("chart.metric.value 必须是数字");
+      break;
+    case "code":
+      if (!Array.isArray(c.code) || c.code.length === 0) fail("code.code 必须是非空数组");
+      if (!Array.isArray(c.files) || c.files.length === 0) fail("code.files 必须是非空数组");
+      break;
+    case "map":
+      if (!Array.isArray(c.places) || c.places.length < 2) fail("map.places 至少 2 个");
+      if (!Array.isArray(c.routes) || c.routes.length < 1) fail("map.routes 至少 1 条");
+      for (const r of c.routes) {
+        if (!c.places[r.from] || !c.places[r.to]) fail("map.routes 的下标越界");
+      }
+      break;
+    case "timeline":
+      if (!Array.isArray(c.events) || c.events.length < 2) fail("timeline.events 至少 2 条");
+      break;
+    case "cards":
+      if (!Array.isArray(c.cards) || c.cards.length < 3) fail("cards.cards 至少 3 张");
+      break;
+    default:
+      fail(`未知的 content.kind: ${String(c.kind)}`);
   }
 
   return s as ShotSpec;

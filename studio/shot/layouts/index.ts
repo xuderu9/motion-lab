@@ -4,17 +4,29 @@
 
 import { CHART_MOTION_SOURCES, CHART_VARIANTS } from "./chart";
 import { DOC_MOTION_SOURCES, DOC_VARIANTS } from "./doc";
+import { CARDS_MOTION_SOURCES, CARDS_VARIANTS } from "./cards";
+import { CODE_MOTION_SOURCES, CODE_VARIANTS } from "./code";
+import { MAP_MOTION_SOURCES, MAP_VARIANTS } from "./map";
+import { TIMELINE_MOTION_SOURCES, TIMELINE_VARIANTS } from "./timeline";
 import type { LayoutDraw, LayoutName, LayoutContent, Theme, Variant } from "../types";
 
 export const LAYOUTS: Record<LayoutName, LayoutDraw[]> = {
   doc: DOC_VARIANTS,
   chart: CHART_VARIANTS,
+  code: CODE_VARIANTS,
+  map: MAP_VARIANTS,
+  timeline: TIMELINE_VARIANTS,
+  cards: CARDS_VARIANTS,
 };
 
 /** 每个版式 × 变体的常驻运动源清单，供 check-shot.py 核对验收第 8 条 */
 export const MOTION_SOURCES: Record<LayoutName, Record<number, string[]>> = {
   doc: DOC_MOTION_SOURCES,
   chart: CHART_MOTION_SOURCES,
+  code: CODE_MOTION_SOURCES,
+  map: MAP_MOTION_SOURCES,
+  timeline: TIMELINE_MOTION_SOURCES,
+  cards: CARDS_MOTION_SOURCES,
 };
 
 export function getLayoutDraw(layout: LayoutName, variant: Variant): LayoutDraw {
