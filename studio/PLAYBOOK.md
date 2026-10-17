@@ -105,3 +105,10 @@
 | `<ThreeCanvas>` 传 camera prop | 会被 R3F 重新应用、覆盖 rig 的设置 |
 | 视频渲染不加 `--concurrency=1` | `EffectComposer.addPass` 抛 `alpha` 空引用 |
 | 界面按 1600 宽设计却显示在 488px 屏幕上 | 文字必然糊。**先算有效字号** |
+| Remotion 自带的 ffmpeg 是精简构建 | **没有 `rawvideo` 和 `null` 的编码器**，`-f rawvideo -` 和 `signalstats -f null` 都直接报 `Encoder not found` / `Requested output format 'rawvideo' is not known`。只能用 `-f image2` 导小尺寸灰度 PNG 再读 |
+| 用整帧指标衡量只占全帧 9.39% 的屏幕 | 会被 90.6% 的静止背景摊薄约 10 倍。**屏幕内容必须在屏幕区内测**，只有整片亮度才用整帧 |
+| 写验收判据时不核面积账 | 「全帧两两差 >30%」在屏幕只占 9.39% 时**数学上不可能**（上界 18.8%）。判据写完先算上下界 |
+| 排名赛跑想让行真的移动 | 三种插值全试过都有硬伤（叠字 / 行序提前反映未来 / 交叉遮挡），见 `layouts/chart.ts` 注释。**行序固定** |
+| 用 `Get-Content` 看中文 md | Windows PowerShell 按 ANSI 解码 UTF-8，中文全是乱码。**用 read 工具读文件**，命令行只看纯 ASCII 输出 |
+| 画布坐标差 500px，透视后视觉高度差约 34px | 屏幕是斜的，右对齐的数值会看起来「不在自己那一行」。**数值贴着图形末端放** |
+| 改了代码却没 typecheck 就渲染 | 少一个 import 只会渲到一半抛 `ReferenceError`，白等一轮 bundle。`render-batch.ps1` 已把 typecheck 作为前置门 |

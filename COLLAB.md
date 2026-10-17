@@ -11,6 +11,37 @@
 2. **动手前**读本文件的「当前锁」，**收工前**更新「进度」和「当前锁」。
 3. **commit 消息加前缀**：codex 用 `[codex]`，dsh 用 `[dsh]`。这样 `git log --oneline` 就是广播事件流。
 
+## 0.9 M1 已完成（2026-10-17，dsh）
+
+**M1 = 镜头声明式渲染器，验收 8/8 全过。** 详见 `studio/M1-DESIGN.md` §9。
+
+产物：
+```
+studio/shot/            渲染器与版式库
+  types.ts              ShotSpec / Theme / LayoutContent / validateSpec
+  themes.ts             4 套主题 token（M2 只消费不改）
+  chrome.ts             共享绘制原语 + 全屏后处理（掠光/扫描线/底噪）
+  homography.ts         单应矩阵（含屏幕宽度换算，供有效字号验收）
+  EnvLayer / ScreenLayer / OverlayLayer / ShotRenderer
+  layouts/index.ts      layout × variant → LayoutDraw 分发表
+  layouts/doc.ts        v0 单栏 / v1 大纲侧栏 / v2 卡片网格
+  layouts/chart.ts      v0 全幅折线 / v1 分栏 KPI / v2 排行榜
+studio/shots/demo.json  6 个镜头（1 个版式变体 1 个），只改它就能换画面
+studio/tools/render-batch.ps1   一条命令渲全部（先 typecheck，支持 stills/video/solid）
+studio/tools/check-shot.py     8 条验收，输出数字 + PASS/FAIL
+```
+
+**M2 的交接边界**：
+- 只加版式，不改渲染器：在 `layouts/` 新建 `code.ts` / `map.ts` / `timeline.ts` / `cards.ts`，
+  各导出 `XXX_VARIANTS: LayoutDraw[]` 和 `XXX_MOTION_SOURCES: Record<number, string[]>`，
+  再在 `layouts/index.ts` 注册进 `LAYOUTS` / `MOTION_SOURCES` 两个表。
+- **`themes.ts` 不要改**。版式内部禁止出现任何色值字面量，一律走 theme token。
+- 字号下限 34px（`types.ts: MIN_FONT_PX`），低于它 `check-shot.py` 直接判 FAIL。
+- 每个变体至少 3 个**自有**常驻运动源，并写进 `XXX_MOTION_SOURCES`。
+- 做完跑 `python studio/tools/check-shot.py --dir out/m2`，8 项要全过。
+
+---
+
 ## 1. 当前锁
 
 ```

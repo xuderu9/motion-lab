@@ -54,23 +54,49 @@
 
 ## 5. 当前代码状态
 
+**M1 已完成并验收通过 8/8（2026-10-17）。** 现在是「一个镜头 = 一份 JSON」。
+
 ```
 motion-lab/
 ├─ studio/
-│  ├─ Composite.tsx      ← 合成：背景板 + 单应变换贴 UI + 文字层（233 行）
-│  ├─ LiveUI.tsx         ← 活体界面：深色仪表盘 / 浅色文档页 / 详情页（574 行）
-│  ├─ Root.tsx / index.ts
-│  ├─ PLAYBOOK.md        ← 交付流程规则 + 12 条踩坑记录（务必先读）
-│  ├─ tools/quad-snap.py       ← 求屏幕四角（边缘吸附法）
-│  ├─ tools/check-overflow.py  ← 验证内容是否溢出屏幕（品红探针）
-│  └─ _archive-3d/       ← 已废弃的手搓 3D 场景
-└─ public/plates/        ← 即梦生成的背景板（desk-night.png 为当前定稿）
+│  ├─ shot/                     ← M1：声明式渲染器（新，主线）
+│  │  ├─ types.ts               ShotSpec / Theme / LayoutContent / validateSpec / MIN_FONT_PX
+│  │  ├─ themes.ts              4 套主题 token（M2 只消费不改）
+│  │  ├─ chrome.ts              共享绘制原语 + 掠光/扫描线/底噪/底部渐隐
+│  │  ├─ homography.ts          单应矩阵 + screenWidthInFrame（有效字号换算）
+│  │  ├─ EnvLayer.tsx           环境层（背景板 + exposure）
+│  │  ├─ ScreenLayer.tsx        内容层（圆角裁剪 + 相机 + 版式 + 后处理）
+│  │  ├─ OverlayLayer.tsx       强调层（扁平矢量文字，末尾弹出）
+│  │  ├─ ShotRenderer.tsx       三层合成 + calculateMetadata（时长由 JSON 决定）
+│  │  └─ layouts/
+│  │     ├─ index.ts            layout × variant → LayoutDraw 分发表
+│  │     ├─ doc.ts              v0 单栏全幅 / v1 大纲侧栏 / v2 卡片网格
+│  │     └─ chart.ts            v0 全幅折线 / v1 分栏 KPI / v2 排行榜
+│  ├─ shots/demo.json           ← 6 个验收镜头，只改它就换画面
+│  ├─ Composite.tsx             M1 之前的硬编码版（回归对照，M2 结束删）
+│  ├─ LiveUI.tsx                LiveUI 参考实现（M2 结束删）
+│  ├─ M1-DESIGN.md              施工图 + 验收判据 + §9 实测结果与判据修正
+│  ├─ PLAYBOOK.md               流程规则 + 19 条踩坑
+│  └─ tools/
+│     ├─ render-batch.ps1       一条命令渲全部（先 typecheck；stills/video/solid）
+│     ├─ check-shot.py          8 条验收，数字 + PASS/FAIL
+│     ├─ patch-plate.py         去背景板左上角水印（扩散修补）
+│     ├─ quad-snap.py           求屏幕四角（边缘吸附）
+│     ├─ check-overflow.py      品红探针溢出计数
+│     └─ verify-env.ps1         环境体检（11 项）
+└─ public/plates/               即梦背景板（desk-night.png 已去水印）
 ```
 
 跑法：
-```bash
-npx remotion render studio/index.ts Composite out/composite.mp4 --concurrency=8
-npx remotion still  studio/index.ts Composite out/f.png --frame=120
+```powershell
+# 一条命令渲 6 个镜头（静帧 + 品红探针 + 视频）
+.\studio\tools\render-batch.ps1 -Mode both -WithSolid
+
+# 8 条验收
+python studio\tools\check-shot.py --dir out/m1 --json-out out\m1\report.json
+
+# 单镜头
+npx remotion still studio/index.ts Shot out/x.png --frame=72 --props=out/m1/props/s01-doc-fullbleed.json
 ```
 
 ## 6. 关键常量（改之前先想清楚）
@@ -82,6 +108,10 @@ npx remotion still  studio/index.ts Composite out/f.png --frame=120
 | `LiveUI.tsx` | `CORNER_R` | `76` | 画布空间圆角半径（≈ 成片 23px） |
 | `LiveUI.tsx` | `SOLID_DEBUG` | `false` | 改 true 渲纯品红探针，配合 check-overflow.py |
 | `LiveUI.tsx` | `W/H` | `1600×1200` | **必须 4:3**，平板屏幕是 4:3 |
+| `shot/types.ts` | `resolveEnv` 默认 exposure | **1.14** | 背景板提亮；1.10 时暗页帧会跌破 94 |
+| `shot/types.ts` | `resolveOverlayAt` | **0.68 × 时长** | 强调层入场点；0.55 时压暗帧太多，整片平均亮度被拉穿 |
+| `shot/types.ts` | `MIN_FONT_PX` | **34** | 34 × 0.301 = 10.24px ≥ 验收下限 10px |
+| `shot/chrome.ts` | `barsV` speed 默认 | **2.6** | 单频 sine 在峰值附近几乎不动，一半时间像静止 |
 | 渲染 | concurrency | **8** | 之前用 1 是为已归档的 3D 管线，现已不需要 |
 
 **改屏幕/换背景板的标准流程**：`quad-snap.py` 求 QUAD → `SOLID_DEBUG=true` 渲一帧 →
@@ -103,9 +133,9 @@ npx remotion still  studio/index.ts Composite out/f.png --frame=120
 
 | 天 | 内容 | 验收 |
 |---|---|---|
-| D1 | M1 组件化 + 声明式渲染器骨架 + **doc/chart 两版式各 3 变体（共 6 版面）** | 抽象验证通过 |
-| D2 | 再铺 2 个版式 | 3 版式可用 |
-| D3 | 再铺 3 个版式 | 18 变体可用（**风险日**，退路：先做 12 个） |
+| ~~D1~~ | ~~M1 组件化 + 声明式渲染器 + doc/chart 各 3 变体~~ | **已完成，8/8 PASS** |
+| D2 | M2 前半：code + timeline 两版式各 3 变体（6 版面） | 4 版式可用 |
+| D3 | M2 后半：map + cards 两版式各 3 变体（6 版面） | 18 变体可用（**风险日**，退路：先做 12 个） |
 | D4 | M3 分镜规划器 + M4 拼接 | 第一条端到端片子 |
 | D5 | M5 字幕 + 音频双路 | 完整成片 |
 | D6 | M6 批量 + 真实 SRT 跑通 | 产线可用 |

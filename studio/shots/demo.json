@@ -1,0 +1,304 @@
+{
+  "note": "M1 验收数据：doc / chart 两版式 × 3 变体 = 6 个镜头。同一份组件代码，只改这份 JSON 就能换画面。",
+  "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+  "shots": [
+    {
+      "id": "s01-doc-fullbleed",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "doc",
+      "variant": 0,
+      "theme": "light",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.14
+      },
+      "content": {
+        "kind": "doc",
+        "breadcrumb": "知识库 / router.md",
+        "heading": "给模型足够的指引",
+        "subtitle": "更新于刚刚 · 1,024 次浏览",
+        "paragraphs": [
+          "过去我们习惯把说明写成一册手册，",
+          "把每一步都规定死，生怕模型走错。",
+          "但新一代模型对歧义的理解好了很多，",
+          "过细的指令反而会限制它的发挥。",
+          "于是更好的写法变成：只给路标。",
+          "告诉它入口在哪里，剩下让它自己决定。",
+          "路标式说明还有一个好处：更耐模型迭代。",
+          "换一代模型，手册要重写，路标不必。",
+          "具体做法是三层结构：入口、索引、细则。",
+          "入口只写一句话，说明这份材料解决什么。",
+          "索引列出所有可读的文档与脚本，",
+          "细则只有在被点开时才需要展开。",
+          "这样无论是人还是 agent，都不会迷路。",
+          "也不会被迫读完一万字才找到需要的那段。"
+        ],
+        "sidebar": {
+          "title": "引用分布",
+          "bars": [12, 19, 8, 24, 16, 31, 14, 21, 9]
+        }
+      },
+      "overlay": {
+        "kicker": "M1 · 文档版式 A",
+        "title": "单栏全幅阅读",
+        "bullets": [
+          "正文连续上滚 + 高亮带逐行下移",
+          "右侧引用分布柱每秒呼吸",
+          "右缘滚动滑块与底部阅读进度"
+        ]
+      }
+    },
+    {
+      "id": "s02-doc-sidebar",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "doc",
+      "variant": 1,
+      "theme": "warm-sand",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.14
+      },
+      "content": {
+        "kind": "doc",
+        "breadcrumb": "知识库 / 大纲",
+        "heading": "把说明写成路标",
+        "subtitle": "不是手册，是索引",
+        "paragraphs": [
+          "过度约束的代价往往在很久以后才显现。",
+          "你写的是一条规则，模型读到的是硬边界。",
+          "边界太紧，它就放弃了本来能做的推理。",
+          "我们做过一组对照：同一任务，两版说明。",
+          "详尽版把每一步拆成七个子步骤，",
+          "路标版只说清目标与可用材料。",
+          "结果详尽版完成率反而低了十一个点。",
+          "原因不是它不会做，而是它没有空间去做。",
+          "所以写说明时先问一句：这句删掉会怎样。",
+          "如果删掉之后模型仍然能完成任务，",
+          "那这句话就是约束，而不是指引。",
+          "约束应该留给真正不能出错的地方。"
+        ],
+        "outline": [
+          "为什么是路标",
+          "过度约束的代价",
+          "对照实验",
+          "模型代际差异",
+          "删句测试",
+          "不能出错处",
+          "可复查写法",
+          "检查清单"
+        ]
+      },
+      "overlay": {
+        "kicker": "M1 · 文档版式 B",
+        "title": "大纲侧栏 + 双栏",
+        "bullets": [
+          "左栏当前小节每 1.4 秒推进一条",
+          "左栏与右正文以不同速度滚动",
+          "右缘进度滑块持续下移"
+        ]
+      }
+    },
+    {
+      "id": "s03-doc-grid",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "doc",
+      "variant": 2,
+      "theme": "cool-teal",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.14
+      },
+      "content": {
+        "kind": "doc",
+        "breadcrumb": "知识库 / 索引",
+        "heading": "结构化知识的六种形态",
+        "subtitle": "索引页 · 每张卡片都是一份可点开的材料",
+        "paragraphs": [
+          "入口文件放在最顶层。",
+          "总目录列出所有可读材料。",
+          "细则只在被点开时才展开。",
+          "重复流程抽成可复用能力。",
+          "过时说明必须明确标记。",
+          "能机械判断的交给脚本。"
+        ],
+        "cards": [
+          { "title": "入口文件", "body": "一句话说明这份材料解决什么问题，放在最顶层。", "tag": "入口" },
+          { "title": "总目录", "body": "列出所有可读文档与脚本，并标注各自的用途。", "tag": "索引" },
+          { "title": "细则文档", "body": "只有在被点开时才展开，避免一次性灌满上下文。", "tag": "细则" },
+          { "title": "可复用能力", "body": "把重复出现的流程抽成独立单元，供多个入口引用。", "tag": "能力" },
+          { "title": "归档约定", "body": "已经过时的说明要明确标记，否则会被当成现行规则。", "tag": "维护" },
+          { "title": "校验脚本", "body": "把可以机械判断的检查交给脚本，不要写成文字要求。", "tag": "工具" }
+        ],
+        "tags": ["路标", "手册", "约束", "指引", "迭代", "上下文", "校验", "归档"]
+      },
+      "overlay": {
+        "kicker": "M1 · 文档版式 C",
+        "title": "卡片网格 + 标签流",
+        "bullets": [
+          "六张卡片折线各自呼吸且相位不同",
+          "聚光灯在卡片之间连续移动",
+          "底部标签流整条横向滚动"
+        ]
+      }
+    },
+    {
+      "id": "s04-chart-fullbleed",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "chart",
+      "variant": 0,
+      "theme": "light",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.14
+      },
+      "content": {
+        "kind": "chart",
+        "heading": "模型调用量周报",
+        "subtitle": "过去 24 小时的实时采样，每 15 分钟一个点",
+        "metric": {
+          "label": "本月累计调用",
+          "value": 128400,
+          "delta": 12.4,
+          "unit": "次"
+        },
+        "series": [
+          { "label": "1月", "value": 8200 },
+          { "label": "2月", "value": 9100 },
+          { "label": "3月", "value": 10400 },
+          { "label": "4月", "value": 9800 },
+          { "label": "5月", "value": 11200 },
+          { "label": "6月", "value": 12600 },
+          { "label": "7月", "value": 11900 },
+          { "label": "8月", "value": 13400 },
+          { "label": "9月", "value": 14100 },
+          { "label": "10月", "value": 13800 },
+          { "label": "11月", "value": 15200 },
+          { "label": "12月", "value": 16400 }
+        ],
+        "mode": "line",
+        "badge": "LIVE"
+      },
+      "overlay": {
+        "kicker": "M1 · 图表版式 A",
+        "title": "全幅折线",
+        "bullets": [
+          "主曲线与对照虚线持续变形",
+          "扫描头带着发光点向右推进",
+          "横轴刻度整体向左滚动"
+        ]
+      }
+    },
+    {
+      "id": "s05-chart-split",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "chart",
+      "variant": 1,
+      "theme": "deep-blue",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.14
+      },
+      "content": {
+        "kind": "chart",
+        "heading": "渲染耗时构成",
+        "subtitle": "同一条片子的 900 帧，按环节拆分",
+        "metric": {
+          "label": "平均单帧耗时",
+          "value": 30,
+          "delta": -8.6,
+          "unit": "ms"
+        },
+        "series": [
+          { "label": "编码", "value": 52 },
+          { "label": "转码", "value": 61 },
+          { "label": "合成", "value": 48 },
+          { "label": "渲染", "value": 73 },
+          { "label": "上传", "value": 44 },
+          { "label": "下载", "value": 58 },
+          { "label": "索引", "value": 66 },
+          { "label": "切分", "value": 41 },
+          { "label": "配音", "value": 69 },
+          { "label": "对齐", "value": 55 },
+          { "label": "降噪", "value": 62 },
+          { "label": "封装", "value": 47 },
+          { "label": "抽帧", "value": 71 },
+          { "label": "调色", "value": 53 },
+          { "label": "预览", "value": 59 },
+          { "label": "归档", "value": 64 }
+        ],
+        "mode": "bars",
+        "badge": "本周"
+      },
+      "overlay": {
+        "kicker": "M1 · 图表版式 B",
+        "title": "分栏 KPI + 柱状",
+        "bullets": [
+          "三张 KPI 卡的数值持续漂移",
+          "十六根柱子各自呼吸、轮换高亮",
+          "分布条上的游标横向移动"
+        ]
+      }
+    },
+    {
+      "id": "s06-chart-rankrace",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "chart",
+      "variant": 2,
+      "theme": "deep-blue",
+      "env": {
+        "src": "plates/desk-night.png",
+        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "cornerRadius": 76,
+        "exposure": 1.14
+      },
+      "content": {
+        "kind": "chart",
+        "heading": "开源模型下载量排名",
+        "subtitle": "按季度累计 · 单位：万次",
+        "metric": {
+          "label": "本期总下载",
+          "value": 3124,
+          "delta": 6.2,
+          "unit": "万次"
+        },
+        "series": [
+          { "label": "Qwen3-72B", "value": 428 },
+          { "label": "Llama-4-70B", "value": 415 },
+          { "label": "DeepSeek-V4", "value": 360 },
+          { "label": "Mistral-Large", "value": 324 },
+          { "label": "Gemma-3-27B", "value": 292 },
+          { "label": "Phi-5-Medium", "value": 263 },
+          { "label": "Yi-2-34B", "value": 237 },
+          { "label": "OLMo-3-32B", "value": 213 }
+        ],
+        "mode": "rank-race",
+        "badge": "季度"
+      },
+      "overlay": {
+        "kicker": "M1 · 图表版式 C",
+        "title": "排名赛跑",
+        "bullets": [
+          "条形长度随时间演化，名次真的互换",
+          "软排序让换位过程平滑而不是瞬跳",
+          "第一名条内掠光持续扫过"
+        ]
+      }
+    }
+  ]
+}
