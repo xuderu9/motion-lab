@@ -466,20 +466,20 @@ export function draw(g: CanvasRenderingContext2D, frame: number, fps: number) {
 
     // 标题
     g.fillStyle = "#12202f";
-    g.font = `700 40px ${FONT}`;
-    g.fillText("给模型足够的指引", 40, 150);
+    g.font = `700 62px ${FONT}`;
+    g.fillText("给模型足够的指引", 40, 158);
     g.fillStyle = "rgba(27,42,61,0.55)";
-    g.font = `400 17px ${FONT}`;
-    g.fillText("更新于 " + Math.floor(t) + " 秒前 · 1,0" + (Math.floor(t) % 10) + " 次浏览", 40, 182);
+    g.font = `400 26px ${FONT}`;
+    g.fillText("更新于 " + Math.floor(t) + " 秒前 · 1,0" + (Math.floor(t) % 10) + " 次浏览", 40, 200);
 
     // 正文：真实文字，连续滚动（大面积运动，避免冻结帧）
-    const scrollY = (t * 300) % 34;
+    const scrollY = (t * 300) % 64;
     const hl = (t / 0.5) % 14;
     const hlI = Math.floor(hl);
-    const hlY = 236 + hlI * 34 - scrollY + easeOut(hl - hlI) * 34;
-    if (hlY > 196 && hlY < 1010) {
+    const hlY = 268 + hlI * 64 - scrollY + easeOut(hl - hlI) * 64;
+    if (hlY > 210 && hlY < 1000) {
       g.fillStyle = "rgba(70,120,200,0.13)";
-      rr(g, 34, hlY - 20, 930, 30, 6);
+      rr(g, 34, hlY - 34, 930, 52, 8);
       g.fill();
     }
     const doc = [
@@ -498,11 +498,11 @@ export function draw(g: CanvasRenderingContext2D, frame: number, fps: number) {
       "这也是 AGENTS.md 与 skill 的分工所在。",
       "一条好的指引，通常只指向入口，不展开全部。",
     ];
-    for (let i = -1; i < 30; i++) {
-      const y = 230 + i * 34 - scrollY;
-      if (y < 200 || y > 1010) continue;
-      g.fillStyle = "rgba(24,38,56,0.78)";
-      g.font = `400 19px ${FONT}`;
+    for (let i = -1; i < 20; i++) {
+      const y = 262 + i * 64 - scrollY;
+      if (y < 210 || y > 1000) continue;
+      g.fillStyle = "rgba(24,38,56,0.86)";
+      g.font = `400 34px ${FONT}`;
       g.fillText(doc[((i % doc.length) + doc.length) % doc.length], 46, y);
     }
 
