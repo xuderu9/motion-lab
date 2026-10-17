@@ -72,7 +72,16 @@ motion-lab/
 │  │     ├─ index.ts            layout × variant → LayoutDraw 分发表
 │  │     ├─ doc.ts              v0 单栏全幅 / v1 大纲侧栏 / v2 卡片网格
 │  │     └─ chart.ts            v0 全幅折线 / v1 分栏 KPI / v2 排行榜
-│  ├─ shots/demo.json           ← 6 个验收镜头，只改它就换画面
+│  ├─ shots/
+│  │  ├─ demo.json              M1 的 6 个验收镜头
+│  │  ├─ m2.json                M2 的 12 个验收镜头（4 版式 × 3 变体）
+│  │  └─ sample.srt             40 行 / 175s 测试口播稿
+│  ├─ planner/                  ← M3 分镜规划器（SRT → plan.json）
+│  │  ├─ parse-srt.ts features.ts segment.ts score.ts solve.ts derive.ts
+│  │  └─ environments.ts plan.ts segment-preview.ts
+│  ├─ plates.json               环境注册表：4 个已验证环境（quad + exposure）
+│  ├─ PLATE-SPEC.md             背景板硬阈值 + 曝光公式 + 16 张候选实测
+│  ├─ M3-DESIGN.md              分镜规划器施工图 + §10 实现中发现的问题
 │  ├─ Composite.tsx             M1 之前的硬编码版（回归对照，M2 结束删）
 │  ├─ LiveUI.tsx                LiveUI 参考实现（M2 结束删）
 │  ├─ M1-DESIGN.md              施工图 + 验收判据 + §9 实测结果与判据修正
@@ -94,6 +103,13 @@ motion-lab/
 
 # 8 条验收
 python studio\tools\check-shot.py --dir out/m1 --json-out out\m1\report.json
+
+# M3：SRT -> plan.json（含人看的规划表）
+node out\planner-js\planner\plan.js --srt studio/shots/sample.srt --out out/film/plan.json
+python studio\tools\check-plan.py --plan out/film/plan.json --srt studio/shots/sample.srt
+
+# 画布边界溢出（品红探针抓不到的那一类）
+python studio\tools\check-canvas-overflow.py --dir out/m2-dsh --shots-json studio/shots/m2.json
 
 # 单镜头
 npx remotion still studio/index.ts Shot out/x.png --frame=72 --props=out/m1/props/s01-doc-fullbleed.json
@@ -134,9 +150,9 @@ npx remotion still studio/index.ts Shot out/x.png --frame=72 --props=out/m1/prop
 | 天 | 内容 | 验收 |
 |---|---|---|
 | ~~D1~~ | ~~M1 组件化 + 声明式渲染器 + doc/chart 各 3 变体~~ | **已完成，8/8 PASS** |
-| D2 | M2 前半：code + timeline 两版式各 3 变体（6 版面） | 4 版式可用 |
-| D3 | M2 后半：map + cards 两版式各 3 变体（6 版面） | 18 变体可用（**风险日**，退路：先做 12 个） |
-| D4 | M3 分镜规划器 + M4 拼接 | 第一条端到端片子 |
+| ~~D2~~ | ~~M2：code/map/timeline/cards 四版式各 3 变体~~ | **已完成，dsh 复核 8/8 PASS** |
+| ~~D3~~ | ~~M3 分镜规划器~~ | **已完成，两本真 SRT 全部验收通过** |
+| D4 | M4 多镜头拼接 + 转场 | 第一条端到端片子 |
 | D5 | M5 字幕 + 音频双路 | 完整成片 |
 | D6 | M6 批量 + 真实 SRT 跑通 | 产线可用 |
 | D7 | 缓冲 | 交付 |
