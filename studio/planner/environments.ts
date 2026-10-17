@@ -7,7 +7,7 @@
 // 不是手调的。换板子请跑 studio/tools/plate-prep.ps1 重新生成。
 
 import { readFileSync } from "node:fs";
-import type { EnvSpec } from "../shot/types";
+import type { EnvSpec, ThemeName } from "../shot/types";
 
 export type EnvironmentEntry = {
   name: string;
@@ -15,6 +15,14 @@ export type EnvironmentEntry = {
   label: string;
   /** 适合的版式族；空 = 通用 */
   prefer?: string[];
+  /**
+   * 允许搭配的主题；缺省 = 亮暗都能配。
+   *
+   * 为什么需要：屏占比大的环境（特写 22%）配暗主题时，整帧亮度会被屏内拉黑到 77，
+   * 而验收要求暗页帧 ≥94。抬曝光救不回来——房间会先被烧穿。所以这类环境
+   * 必须在注册表里限定为亮主题（见 PLATE-SPEC §4.4）。
+   */
+  allowedThemes?: ThemeName[];
   env: EnvSpec;
 };
 
@@ -38,10 +46,18 @@ export function loadRegistry(path: string): PlateRegistry {
 
 /**
  * 给第 i 个镜头挑环境。
- * 规则：优先选「标了适合这个版式」的环境；同优先级里轮换，避免整片只用一间屋。
+ *
+ * 两道过滤，顺序不能反：
+ *   1. **主题必须被环境允许**（特写只配亮主题）。先过这道，否则会挑出一个
+ *      主题上根本站不住的环境，亮度验收直接挂。
+ *   2. 版式偏好（标了 prefer 的优先），同优先级里轮换，避免整片只用一间屋。
  */
-export function pickEnvironment(reg: PlateRegistry, layout: string, i: number): EnvironmentEntry {
-  const suited = reg.environments.filter((e) => e.prefer?.includes(layout));
-  const pool = suited.length ? suited : reg.environments;
+export function pickEnvironment(reg: PlateRegistry, layout: string, theme: string, i: number): EnvironmentEntry {
+  const themeOk = reg.environments.filter(
+    (e) => !e.allowedThemes || e.allowedThemes.includes(theme as ThemeName),
+  );
+  const pool0 = themeOk.length ? themeOk : reg.environments;
+  const suited = pool0.filter((e) => e.prefer?.includes(layout));
+  const pool = suited.length ? suited : pool0;
   return pool[i % pool.length];
 }

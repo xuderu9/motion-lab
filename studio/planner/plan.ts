@@ -89,7 +89,7 @@ for (let i = 0; i < segs.length; i++) {
   const warn = (kind: string, detail: string) => warnings.push({ shotId, kind, detail });
 
   const content = deriveContent(a.layout, seg.text, seg.start - base, warn);
-  const envEntry = pickEnvironment(reg, a.layout, i);
+  const envEntry = pickEnvironment(reg, a.layout, a.theme, i);
   const durationInFrames = Math.max(1, Math.round((seg.end - seg.start) * fps));
 
   const sc = scoreLayouts(seg.features);

@@ -1,5 +1,5 @@
 {
-  "_note": "环境注册表。每个 env 的 quad / exposure 都由 plate-prep.ps1 实测推导，换板子请重新跑，不要手改数字。",
+  "_note": "环境注册表。每个 env 的 quad / exposure 都由 plate-prep.ps1 实测推导，换板子请重新跑，不要手改数字。allowedThemes 缺省 = 亮暗主题都能配；写了就只允许这些主题（见 PLATE-SPEC §4.4）。",
   "default": "desk-night",
   "environments": [
     {
@@ -44,6 +44,19 @@
         "quad": [[888, 378], [1424, 364], [1298, 833], [744, 778]],
         "cornerRadius": 76,
         "exposure": 0.557
+      }
+    },
+    {
+      "name": "closeup",
+      "label": "平板特写（屏占 22%，文字最大）",
+      "prefer": ["doc", "code"],
+      "allowedThemes": ["light", "warm-sand"],
+      "_why": "屏占比 22.29%：暗主题屏内只有 ~50，整帧会掉到 77，曝光再怎么抬都救不回来（房间会先爆）。所以这个环境只配亮主题——这不是妥协，是算出来的约束。详见 PLATE-SPEC §4.4。",
+      "env": {
+        "src": "plates/closeup.png",
+        "quad": [[538, 219], [1306, 248], [1456, 785], [630, 839]],
+        "cornerRadius": 76,
+        "exposure": 1.236
       }
     }
   ]

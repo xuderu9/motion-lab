@@ -34,6 +34,8 @@ if hasattr(sys.stdout, "reconfigure"):
 CANVAS_W = 1600           # 屏幕画布宽（有效字号换算基准）
 DARK_SCREEN_LUMA = 50.0   # 深色主题屏内典型平均亮度（实测）
 TARGET_DARK_AVG = 96.0    # 暗页帧目标（验收下限 94，留 2 分余量）
+TARGET_LIGHT_AVG = 116.0  # 亮页帧目标（验收下限 110，留 6 分余量）——仅供「只配亮主题」的环境用
+LIGHT_SCREEN_LUMA = 225.0
 AREA_LO, AREA_HI = 0.090, 0.180   # 屏幕占比可用窗口
 
 
@@ -227,11 +229,22 @@ def quad_metrics(quad, L):
     }
 
 
-def suggest_exposure(area_frac):
-    """反推房间亮度：使暗页帧整帧均值达到 TARGET_DARK_AVG。
+def suggest_exposure(area_frac, light_only=False):
+    """反推房间亮度。
+
+    默认按**暗页帧**定标（TARGET_DARK_AVG=96）：暗主题屏内只有 ~50，是整帧最暗的那一档，
+    把它托住了，亮页帧自然也在线（实测亮页会到 120 左右）。
+
+    `light_only=True` 时改按**亮页帧**定标（TARGET_LIGHT_AVG=116）：
+    这是给「屏占比大到放不下暗主题」的环境用的 —— 例如 22% 屏占比的特写，
+    暗主题会把整帧拉到 77，任何曝光都救不回来（房间会先被烧穿）。
+    这类环境在注册表里必须写 allowedThemes 限定为亮主题。
 
     整帧 = (1-a)·房间 + a·屏内，再扣掉强调层压暗的平均损耗（实测拟合 0.955·W+0.315）。
     """
+    if light_only:
+        W = (TARGET_LIGHT_AVG - 0.315) / 0.955
+        return (W - LIGHT_SCREEN_LUMA * area_frac) / (1.0 - area_frac)
     W = (TARGET_DARK_AVG - 0.315) / 0.955
     return (W - DARK_SCREEN_LUMA * area_frac) / (1.0 - area_frac)
 
@@ -244,6 +257,7 @@ def main():
     ap.add_argument("--edge-thresh", type=float, default=10.0)
     ap.add_argument("--seed", default=None, help="手动给一个屏幕内的像素坐标 x,y（自动失败时用）")
     ap.add_argument("--name", default=None, help="环境名，写进 env json 的 src")
+    ap.add_argument("--light-only", action="store_true", help="只配亮主题的环境（按亮页帧定标）")
     args = ap.parse_args()
 
     im = Image.open(args.plate).convert("RGB").resize((1920, 1080), Image.LANCZOS)
@@ -269,7 +283,7 @@ def main():
 
     m = quad_metrics(quad, blur)
     a_frac = m["area_pct"] / 100.0
-    R = suggest_exposure(a_frac)
+    R = suggest_exposure(a_frac, light_only=args.light_only)
     exp = R / m["outside_luma"] if m["outside_luma"] > 1 else 1.0
     eff = m["screen_w"] / CANVAS_W * 34.0
 
@@ -286,7 +300,8 @@ def main():
     print("  屏幕宽 %.1f px   占全帧 %.2f%%   屏内 %.1f   屏外 %.1f" % (
         m["screen_w"], m["area_pct"], m["inside_luma"], m["outside_luma"]))
     print("  34px 画布字号 -> 成片 %.2fpx %s" % (eff, "OK" if eff >= 10 else "FAIL(<10px)"))
-    print("  建议 exposure %.3f   (房间目标亮度 %.1f)" % (exp, R))
+    print("  建议 exposure %.3f   (房间目标亮度 %.1f，定标=%s)" % (
+        exp, R, "亮页帧" if args.light_only else "暗页帧"))
     ok_area = AREA_LO <= a_frac <= AREA_HI
     print("  屏幕占比窗口 %.0f%%~%.0f%% -> %s" % (
         AREA_LO * 100, AREA_HI * 100,
