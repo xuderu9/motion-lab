@@ -154,7 +154,7 @@ studio/
 │     ├─ doc.ts         ← 3 个变体（现有 LiveUI 的浅色页迁过来做 variant 0）
 │     └─ ...            ← M2 时补 code/map/timeline/cards
 ├─ shots/
-│  └─ demo-3.json       ← M1 验收用：3 个视觉明显不同的镜头
+│  └─ demo.json         ← M1 验收用：6 个镜头（每个版式变体 1 个，实际覆盖比原计划更严）
 └─ tools/
    └─ check-shot.py     ← 一条命令跑完所有指标，输出 PASS/FAIL 表
 ```
@@ -230,7 +230,7 @@ studio/
 2. `ShotRenderer` + 三个 Layer（把现有 Composite 迁过来）
 3. `layouts/doc.ts` 的 3 个变体（最快的验证路径 —— 现有的浅色页就是 variant 0）
 4. `layouts/chart.ts` 的 3 个变体
-5. `demo-3.json` 三个镜头（跨版式：doc×2 + chart×1，验证只改 JSON 就能换画面）
+5. `demo.json` 六个镜头（doc 3 个变体 + chart 3 个变体，每个变体各 1 个 —— 比原计划「3 个镜头」更严）
 6. `check-shot.py` + 批量渲染脚本
 7. 跑验收，全过 → M1 完成，交 Codex 做 M2
 
