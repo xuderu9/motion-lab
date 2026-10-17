@@ -129,7 +129,10 @@ const cardsMasonry: LayoutDraw = (g, t, raw, theme) => {
   const COLS = 3;
   const CW = (CANVAS_W - PAD * 2 - GAP * (COLS - 1)) / COLS;
   const TOP = 120;
-  const H_PATTERN = [430, 348, 402];
+  // 三张卡 + 两个间距必须落在「顶部 120 → 底部标签带 1064」之间，
+  // 还要留出 ±14px 的列漂移量。原来 430+348+402 会画到 1360，直接被画布裁掉
+  // （品红探针查不到，但人眼看到的是「卡片被切了一半」）。
+  const H_PATTERN = [310, 252, 268];
 
   const cards = c.cards;
   const total = cards.length;

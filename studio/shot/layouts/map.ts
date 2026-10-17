@@ -378,6 +378,22 @@ const mapSplit: LayoutDraw = (g, t, raw, theme) => {
   g.stroke();
   g.globalAlpha = 1;
 
+  // 底部图例：把地点备注转成图例条目（内容全部来自 content）。
+  // 地图没有图例会显得像背景装饰；补上之后信息密度和"这是张地图"的可读性都更足。
+  const legend = c.places.slice(0, 4);
+  const ly = MY + MH - 58;
+  const slot = (MW - 56) / Math.max(1, legend.length);
+  legend.forEach((p, i) => {
+    const lx = MX + 28 + i * slot;
+    g.fillStyle = i === 0 ? theme.accent : theme.textFaint;
+    rr(g, lx, ly - 5, 22, 4, 2);
+    g.fill();
+    text(g, ellipsize(g, p.note ?? p.name, slot - 40, 34, 400), lx + 32, ly + 14, theme, {
+      size: 34,
+      tone: i === 0 ? "text" : "textFaint",
+    });
+  });
+
   progressBar(g, MX + 28, MY + MH + 12, MW - 56, 8, mod(t * 0.14, 1), theme);
 };
 
