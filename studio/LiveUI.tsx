@@ -16,7 +16,9 @@ import React, { useLayoutEffect, useRef } from "react";
 import { AbsoluteFill, Composition, useCurrentFrame, useVideoConfig } from "remotion";
 
 const W = 1600;
-const H = 900;
+// 4:3 —— 要贴到背景板的平板上（真实平板屏幕就是 4:3）。
+// 用 16:9 贴上去会被单应变换横向压扁 33%，文字会明显变形。
+const H = 1200;
 
 const FONT = "'Inter','Microsoft YaHei',system-ui,sans-serif";
 
@@ -30,7 +32,7 @@ function easeOut(t: number) {
 }
 
 /** 工作区绘制。全部按时间连续演化，没有任何"一次性播完就停"的东西。 */
-function draw(g: CanvasRenderingContext2D, frame: number, fps: number) {
+export function draw(g: CanvasRenderingContext2D, frame: number, fps: number) {
   const t = frame / fps;
 
   // ---------- 背景 ----------
@@ -407,6 +409,33 @@ function draw(g: CanvasRenderingContext2D, frame: number, fps: number) {
     g.fillStyle = "rgba(170,195,220,0.5)";
     g.font = `400 13px ${FONT}`;
     g.fillText(`${(1240 + Math.floor(t * 7)).toLocaleString("en-US")} 条`, gx0 + 18, 352);
+  }
+
+  // ---------- 底部：渲染队列（填满 4:3 画布的下半部分）----------
+  const qy = 800;
+  g.fillStyle = "rgba(255,255,255,0.03)";
+  rr(g, 40, qy, 1520, 350, 16);
+  g.fill();
+  g.fillStyle = "rgba(170,195,220,0.5)";
+  g.font = `500 15px ${FONT}`;
+  g.fillText("Render Queue", 64, qy + 32);
+  for (let i = 0; i < 5; i++) {
+    const qyy = qy + 62 + i * 56;
+    const prog = (t * 0.22 + i * 0.17) % 1;
+    g.fillStyle = "rgba(255,255,255,0.05)";
+    rr(g, 64, qyy, 1080, 22, 11);
+    g.fill();
+    const grd = g.createLinearGradient(64, 0, 64 + 1080 * prog, 0);
+    grd.addColorStop(0, "rgba(79,147,255,0.9)");
+    grd.addColorStop(1, "rgba(56,214,168,0.95)");
+    g.fillStyle = grd;
+    rr(g, 64, qyy, Math.max(4, 1080 * prog), 22, 11);
+    g.fill();
+    g.fillStyle = "rgba(210,225,245,0.85)";
+    g.font = `400 14px ${FONT}`;
+    g.fillText(`shot-${String(i + 1).padStart(2, "0")}`, 1176, qyy + 17);
+    g.fillStyle = "rgba(170,195,220,0.5)";
+    g.fillText(`${Math.round(prog * 100)}%`, 1290, qyy + 17);
   }
 
   // ---------- 大面积掠光 ----------
