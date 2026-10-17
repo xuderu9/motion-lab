@@ -20,6 +20,19 @@ const W = 1600;
 // 用 16:9 贴上去会被单应变换横向压扁 33%，文字会明显变形。
 const H = 1200;
 
+/**
+ * 屏幕圆角半径（画布空间）。
+ * 换算：画布 1600 宽 → 成片里屏幕约 488px 宽，比例 0.305；
+ * 平板的圆角约 22px（成片尺度）→ 22 / 0.305 ≈ 72，取 76 略保守。
+ */
+const CORNER_R = 76;
+
+/**
+ * 调试：把界面画成纯品红（夜景照片里绝不会有这个颜色），
+ * 用来精确验证"内容有没有溢出屏幕"。验完改回 false。
+ */
+const SOLID_DEBUG = false;
+
 const FONT = "'Inter','Microsoft YaHei',system-ui,sans-serif";
 
 function rr(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -34,6 +47,22 @@ function easeOut(t: number) {
 /** 工作区绘制。全部按时间连续演化，没有任何"一次性播完就停"的东西。 */
 export function draw(g: CanvasRenderingContext2D, frame: number, fps: number) {
   const t = frame / fps;
+
+  // ---------- 圆角裁剪 ----------
+  // 平板屏幕是圆角，而画布是矩形 —— 不做这一步，四个角会戳到屏幕外面去。
+  // 在画布内部裁剪比用 CSS border-radius 可靠：透视变换后不会出现锯齿，
+  // 而且画布四角变透明，透出的是背景板上真实的屏幕（含它自己的反光）。
+  g.save();
+  g.beginPath();
+  g.roundRect(0, 0, W, H, CORNER_R);
+  g.clip();
+
+  if (SOLID_DEBUG) {
+    g.fillStyle = "#ff00ff";
+    g.fillRect(0, 0, W, H);
+    g.restore();
+    return;
+  }
 
   // ---------- 背景 ----------
   const bg = g.createLinearGradient(0, 0, 0, H);
@@ -551,6 +580,8 @@ export function draw(g: CanvasRenderingContext2D, frame: number, fps: number) {
   // ---------- 扫描线：让整屏更像"正在录制的显示器" ----------
   g.fillStyle = "rgba(120,170,255,0.035)";
   for (let y = (frame * 7) % 4; y < H; y += 4) g.fillRect(0, y, W, 1);
+
+  g.restore(); // 解除圆角裁剪
 }
 
 const LiveUIComp: React.FC = () => {
