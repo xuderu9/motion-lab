@@ -1,56 +1,68 @@
-// 内容层：单应变换容器 + 画布绘制。
+// 内容层：把某一版式画成一张画布，再放进画面。
 //
-// 这一层做三件事，且**只做**这三件事：
-//   1. 把 1600×1200 画布用 matrix3d 贴到背景板的梯形屏幕上
-//   2. 画布内圆角裁剪（不裁的话四角会戳到屏幕外面）
-//   3. 主题底色 → 虚拟相机 → 交给版式 → 全屏后处理（掠光/色温/扫描线）
+// 两种呈现方式共用这一套代码（M5 的 presentation 轴）：
+//   screen —— 画在 1600×1200，经单应变换贴到背景板里那块屏幕上（现有行为）
+//   full   —— 画在 1920×1080，直接铺满整帧（参考片里占 ~40% 的那一类）
 //
-// 版式自己不知道自己在被透视变换，也不知道有掠光和扫描线 —— 这样 M2 加版式时
-// 这些"看起来高级"的东西是白送的，不会漏。
+// 关键设计：**画布尺寸是参数**，不是常量。
+// 老版式（doc/chart/...）按 1600×1200 写死，所以传 1600×1200 给它们就行为不变；
+// 新版式（title/stat/quote/atmosphere）收 size 参数，两种尺寸都能画。
 
-import React, { useLayoutEffect, useRef } from "react";
+import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import { sheen, scanlines, screenNoise, tintBreath } from "./chrome";
-import { homographyMatrix3d } from "./homography";
-import { paintLayout } from "./layouts";
-import type { ShotSpec, Theme } from "./types";
+import type { ShotSpec, Theme, LayoutSize } from "./types";
 import { CANVAS_H, CANVAS_W } from "./types";
+import { paintLayout } from "./layouts";
+import { homographyMatrix3d } from "./homography";
+import { scanlines, screenNoise, sheen, tintBreath } from "./chrome";
+import { useLayoutEffect, useRef } from "react";
+
+export const SCREEN_SIZE: LayoutSize = { w: CANVAS_W, h: CANVAS_H };
+export const FULL_SIZE: LayoutSize = { w: 1920, h: 1080 };
 
 /** 整块画布画一遍。导出以便 test/still 脚本直接调用。 */
-export function paintScreen(g: CanvasRenderingContext2D, frame: number, fps: number, spec: ShotSpec, theme: Theme) {
+export function paintScreen(
+  g: CanvasRenderingContext2D,
+  frame: number,
+  fps: number,
+  spec: ShotSpec,
+  theme: Theme,
+  size: LayoutSize = SCREEN_SIZE,
+) {
   const t = frame / fps;
   const R = spec.env.cornerRadius;
+  const W = size.w;
+  const H = size.h;
 
   g.setTransform(1, 0, 0, 1, 0, 0);
-  g.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  g.clearRect(0, 0, W, H);
 
   // 注意：这里**不要**先整块 fillRect 垫深色。
   // 试过，会画布四角露出「黑色直角」——fillRect 是方角，圆角裁剪在外面，
   // 于是每个角都有一个 90° 的深色尖角压在设备边框上，用户一眼就看到了。
-  // 边缘露白的问题在背景板那一侧解决（见 darken-screen.py：把占位屏涂暗），
-  // 这样缝隙里透出来的是背景板自己的暗色，过渡是自然的。
+  // 边缘露白的问题在背景板那一侧解决（见 darken-screen.py）。
 
-  // 圆角裁剪：在画布内部裁比 CSS border-radius 可靠 ——
-  // 透视变换后不出锯齿，而且画布四角变透明，透出的是背景板上真实的屏幕反光。
   g.save();
   g.beginPath();
-  g.roundRect(0, 0, CANVAS_W, CANVAS_H, R);
+  // 整帧模式不需要圆角：它就是画面本身，圆角反而会露出背景
+  if (size === SCREEN_SIZE) g.roundRect(0, 0, W, H, R);
+  else g.rect(0, 0, W, H);
   g.clip();
 
-  // 验收专用：纯品红探针，配合 check-overflow.py 数溢出像素
+  // 验收专用：纯品红探针，配合 check-canvas-overflow.py 数溢出像素
   if (spec.debug === "solid") {
     g.fillStyle = "#ff00ff";
-    g.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    g.fillRect(0, 0, W, H);
     g.restore();
     return;
   }
 
   // 主题底色
-  const bg = g.createLinearGradient(0, 0, 0, CANVAS_H);
+  const bg = g.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, theme.bg[0]);
   bg.addColorStop(1, theme.bg[1]);
   g.fillStyle = bg;
-  g.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  g.fillRect(0, 0, W, H);
 
   // 虚拟相机：极缓漂移 + 轻微推拉。
   // 参考片相机位移为零，动的是屏幕里的应用 —— 所以这里幅度必须很小，
@@ -59,25 +71,36 @@ export function paintScreen(g: CanvasRenderingContext2D, frame: number, fps: num
   const camX = 14 * Math.sin(t * 0.31 + 1.2);
   const camY = 9 * Math.sin(t * 0.43);
   g.save();
-  g.translate(CANVAS_W / 2 + camX, CANVAS_H / 2 + camY);
+  g.translate(W / 2 + camX, H / 2 + camY);
   g.scale(camScale, camScale);
-  g.translate(-CANVAS_W / 2, -CANVAS_H / 2);
+  g.translate(-W / 2, -H / 2);
 
-  paintLayout(g, t, spec.layout, spec.variant, spec.content, theme);
+  paintLayout(g, t, spec.layout, spec.variant, spec.content, theme, size);
 
   g.restore();
 
   // 全屏后处理：大面积、低幅度、永不停止 —— 帧差底噪的来源
-  sheen(g, t, CANVAS_W, CANVAS_H, theme);
-  tintBreath(g, t, CANVAS_W, CANVAS_H, theme);
-  scanlines(g, frame, CANVAS_W, CANVAS_H, theme);
+  sheen(g, t, W, H, theme);
+  tintBreath(g, t, W, H, theme);
+  scanlines(g, frame, W, H, theme);
   // 最后一层：逐帧伪随机抖动（模拟录屏底噪，参考片实测 1.5~3）
-  screenNoise(g, frame, CANVAS_W, CANVAS_H, theme);
+  screenNoise(g, frame, W, H, theme);
 
   g.restore();
 }
 
-export const ScreenLayer: React.FC<{ spec: ShotSpec; theme: Theme }> = ({ spec, theme }) => {
+/**
+ * 内容层。
+ *
+ * transform 为空 = 原样铺在左上角（整帧模式）；
+ * 给了 3D 矩阵 = 贴到背景板的屏幕四边形里（现有行为）。
+ */
+export const ScreenLayer: React.FC<{
+  spec: ShotSpec;
+  theme: Theme;
+  size?: LayoutSize;
+  transform?: string;
+}> = ({ spec, theme, size = SCREEN_SIZE, transform }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const ref = useRef<HTMLCanvasElement | null>(null);
@@ -89,8 +112,8 @@ export const ScreenLayer: React.FC<{ spec: ShotSpec; theme: Theme }> = ({ spec, 
     if (!cv) return;
     const g = cv.getContext("2d");
     if (!g) return;
-    paintScreen(g, frame, fps, spec, theme);
-  }, [frame, fps, spec, theme]);
+    paintScreen(g, frame, fps, spec, theme, size);
+  }, [frame, fps, spec, theme, size]);
 
   return (
     <div
@@ -98,18 +121,23 @@ export const ScreenLayer: React.FC<{ spec: ShotSpec; theme: Theme }> = ({ spec, 
         position: "absolute",
         left: 0,
         top: 0,
-        width: CANVAS_W,
-        height: CANVAS_H,
+        width: size.w,
+        height: size.h,
         transformOrigin: "0 0",
-        transform: homographyMatrix3d(spec.env.quad, CANVAS_W, CANVAS_H),
+        transform: transform ?? undefined,
       }}
     >
       <canvas
         ref={ref}
-        width={CANVAS_W}
-        height={CANVAS_H}
-        style={{ width: CANVAS_W, height: CANVAS_H, display: "block" }}
+        width={size.w}
+        height={size.h}
+        style={{ width: size.w, height: size.h, display: "block" }}
       />
     </div>
   );
 };
+
+/** 贴到背景板屏幕里的默认变换 */
+export function screenTransform(quad: [number, number][]): string {
+  return homographyMatrix3d(quad, CANVAS_W, CANVAS_H);
+}

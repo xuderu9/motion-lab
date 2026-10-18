@@ -301,6 +301,18 @@ export type LayoutDraw = (
 // 镜头 spec
 // ---------------------------------------------------------------------------
 
+/**
+ * 呈现方式（M5 的另一个正交轴）。
+ *
+ * 拆参考片发现：161 秒里「画面里有个屏幕」只占 ~5%，是全片唯一的定场镜头；
+ * ~40% 是全屏 UI/图表，~30% 是纯氛围/大字卡。所以「怎么呈现」必须独立于「用哪个版式」。
+ *
+ *   screen —— 房间里的平板（要单应变换贴合）。定场用，每片 2~3 次
+ *   full   —— 画布直接铺满 1920×1080，不贴任何背景板
+ *   plate  —— 深色底 + 悬浮卡片（参考片里「茶具/房间 + 卡片」那一类的简化版）
+ */
+export type Presentation = "screen" | "full" | "plate";
+
 export type EnvSpec = {
   /** public/ 下的背景板路径 */
   src: string;
@@ -335,6 +347,11 @@ export type ShotSpec = {
   theme: ThemeName;
   env: EnvSpec;
   content: LayoutContent;
+  /**
+   * 呈现方式；缺省 = "screen"（向后兼容：M1/M2 的全部镜头 JSON 都不用改）。
+   * full / plate 模式**不需要 env 的 quad 准确**，也不会去贴合背景板。
+   */
+  presentation?: Presentation;
   overlay?: OverlaySpec;
   /**
    * 仅供验收：设为 "solid" 时整块屏幕画成纯品红，
