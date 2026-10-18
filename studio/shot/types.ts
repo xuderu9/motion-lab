@@ -310,8 +310,11 @@ export type LayoutDraw = (
  *   screen —— 房间里的平板（要单应变换贴合）。定场用，每片 2~3 次
  *   full   —— 画布直接铺满 1920×1080，不贴任何背景板
  *   plate  —— 深色底 + 悬浮卡片（参考片里「茶具/房间 + 卡片」那一类的简化版）
+ *   overlay —— **即梦生成的底板 + 透明内容层**。
+ *              这是最该用的一种：背景交给即梦（质感/光效/实拍感），
+ *              canvas 只负责把卡片、文字、图表画上去，不画任何底色。
  */
-export type Presentation = "screen" | "full" | "plate";
+export type Presentation = "screen" | "full" | "plate" | "overlay";
 
 export type EnvSpec = {
   /** public/ 下的背景板路径 */

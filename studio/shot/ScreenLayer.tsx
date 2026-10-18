@@ -30,6 +30,8 @@ export function paintScreen(
   spec: ShotSpec,
   theme: Theme,
   size: LayoutSize = SCREEN_SIZE,
+  /** true = 不画主题底色（透明画布），用于「即梦底板 + 内容浮层」的呈现方式 */
+  transparent = false,
 ) {
   const t = frame / fps;
   const R = spec.env.cornerRadius;
@@ -59,12 +61,14 @@ export function paintScreen(
     return;
   }
 
-  // 主题底色
-  const bg = g.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, theme.bg[0]);
-  bg.addColorStop(1, theme.bg[1]);
-  g.fillStyle = bg;
-  g.fillRect(0, 0, W, H);
+  // 主题底色（透明模式下不画：让底下的即梦底板透上来）
+  if (!transparent) {
+    const bg = g.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, theme.bg[0]);
+    bg.addColorStop(1, theme.bg[1]);
+    g.fillStyle = bg;
+    g.fillRect(0, 0, W, H);
+  }
 
   // 虚拟相机：极缓漂移 + 轻微推拉。
   // 参考片相机位移为零，动的是屏幕里的应用 —— 所以这里幅度必须很小，
@@ -84,12 +88,14 @@ export function paintScreen(
 
   g.restore();
 
-  // 全屏后处理：大面积、低幅度、永不停止 —— 帧差底噪的来源
-  sheen(g, t, W, H, theme);
-  tintBreath(g, t, W, H, theme);
-  scanlines(g, frame, W, H, theme);
-  // 最后一层：逐帧伪随机抖动（模拟录屏底噪，参考片实测 1.5~3）
-  screenNoise(g, frame, W, H, theme);
+  // 全屏后处理。透明模式跳过：这些是「屏幕质感」，压在照片底板上会显脏。
+  if (!transparent) {
+    sheen(g, t, W, H, theme);
+    tintBreath(g, t, W, H, theme);
+    scanlines(g, frame, W, H, theme);
+    // 最后一层：逐帧伪随机抖动（模拟录屏底噪，参考片实测 1.5~3）
+    screenNoise(g, frame, W, H, theme);
+  }
 
   g.restore();
 }
@@ -105,7 +111,8 @@ export const ScreenLayer: React.FC<{
   theme: Theme;
   size?: LayoutSize;
   transform?: string;
-}> = ({ spec, theme, size = SCREEN_SIZE, transform }) => {
+  transparent?: boolean;
+}> = ({ spec, theme, size = SCREEN_SIZE, transform, transparent = false }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const ref = useRef<HTMLCanvasElement | null>(null);
@@ -117,8 +124,8 @@ export const ScreenLayer: React.FC<{
     if (!cv) return;
     const g = cv.getContext("2d");
     if (!g) return;
-    paintScreen(g, frame, fps, spec, theme, size);
-  }, [frame, fps, spec, theme, size]);
+    paintScreen(g, frame, fps, spec, theme, size, transparent);
+  }, [frame, fps, spec, theme, size, transparent]);
 
   return (
     <div

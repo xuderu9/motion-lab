@@ -59,6 +59,19 @@ export const ShotRenderer: React.FC<ShotProps> = ({ spec }) => {
     );
   }
 
+  // ── overlay：即梦底板 + 透明内容层（推荐的默认形态）──
+  // 底板的质感、光效、景深全部来自即梦，canvas 只画卡片和文字。
+  // 这样背景不再是「我用渐变糊出来的」，而是真的画面。
+  if (presentation === "overlay") {
+    return (
+      <AbsoluteFill style={{ background: "#05070b" }}>
+        <EnvLayer env={spec.env} />
+        <ScreenLayer spec={spec} theme={theme} size={FULL_SIZE} transparent />
+        <OverlayLayer spec={spec} />
+      </AbsoluteFill>
+    );
+  }
+
   // ── plate：深色底 + 悬浮卡片（参考片「实拍底片 + 卡片」的简化版）──
   if (presentation === "plate") {
     const pad = 132;

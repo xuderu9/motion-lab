@@ -8,6 +8,14 @@ import type { Theme } from "../types";
 
 const FONT = '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif';
 
+/** 按最大宽度截断并加省略号（场景里所有文字都要过这一关，否则会溢出卡片） */
+function fit(g: CanvasRenderingContext2D, text: string, maxW: number): string {
+  if (g.measureText(text).width <= maxW) return text;
+  let out = text;
+  while (out.length > 1 && g.measureText(out + "…").width > maxW) out = out.slice(0, -1);
+  return out + "…";
+}
+
 function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   g.beginPath();
   g.moveTo(x + r, y);
@@ -51,27 +59,34 @@ function drawCard(
   g.stroke();
 
   const pad = 30 * scale;
+  const innerW = w - pad * 2;
+  g.textBaseline = "top";
+
   g.fillStyle = theme.text;
   g.font = `600 ${Math.round(40 * scale)}px ${FONT}`;
-  g.textBaseline = "top";
-  const title = (it.title ?? "").slice(0, 12);
-  g.fillText(title, x + pad, y + pad);
+  g.fillText(fit(g, it.title ?? "", innerW), x + pad, y + pad);
 
   if (it.value) {
     g.fillStyle = theme.accent;
     g.font = `700 ${Math.round(64 * scale)}px ${FONT}`;
-    g.fillText(it.value, x + pad, y + pad + 56 * scale);
+    g.fillText(fit(g, it.value, innerW), x + pad, y + pad + 56 * scale);
   } else if (it.body) {
     g.fillStyle = theme.textDim;
     g.font = `400 ${Math.round(28 * scale)}px ${FONT}`;
-    const body = it.body.slice(0, 30);
-    g.fillText(body, x + pad, y + pad + 56 * scale, w - pad * 2);
+    // 正文最多两行，逐行截断
+    const words = it.body.replace(/\s+/g, " ").trim();
+    const per = Math.max(4, Math.floor(innerW / (26 * scale)));
+    for (let ln = 0; ln < 2; ln++) {
+      const seg = words.slice(ln * per, (ln + 1) * per);
+      if (!seg) break;
+      g.fillText(fit(g, seg, innerW), x + pad, y + pad + (56 + ln * 34) * scale);
+    }
   }
 
   if (it.tag) {
     g.fillStyle = theme.accentSoft ?? theme.accent;
     g.font = `500 ${Math.round(24 * scale)}px ${FONT}`;
-    g.fillText(it.tag, x + pad, y + h - pad - 24 * scale);
+    g.fillText(fit(g, it.tag, innerW), x + pad, y + h - pad - 24 * scale);
   }
   g.restore();
 }
