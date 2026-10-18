@@ -35,9 +35,9 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-GAP_MIN = -1.5     # 小于它 = 画布压到边框上
-GAP_MAX = 10.0     # 大于它 = 画布太小，和屏幕脱节
-SPREAD_MAX = 5.0   # 四条边互相之间的最大差
+GAP_MIN = -1.0     # 小于它 = 画布压到边框上
+GAP_MAX = 4.0      # 大于它 = 缝隙肉眼可见（用户 2026-10-18 反馈：5px 已经算「缝偏大」）
+SPREAD_MAX = 2.5   # 四条边互相之间的最大差（「四条边一样」）
 
 
 def load_mod():
