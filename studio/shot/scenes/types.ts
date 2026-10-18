@@ -18,19 +18,20 @@
 // 12 个场景 × 6 种内容 = 72 种画面，而场景代码是互相独立的，可以无限加。
 
 import type { LayoutContent, LayoutSize, Theme } from "../types";
+import type { Visual } from "./visuals";
 
-/** 场景消费的最小单元 */
+/**
+ * 一张卡片。
+ *
+ * 用户原话：「卡片中不一定是文字，也可以是动画等，任何画面都可以用卡片展示」。
+ * 所以卡片 = 容器（`visual` 决定里面是什么）+ 一行极短标题（`tag`）。
+ * **不设 body 长文字**：卡片里放大段文字是错的，字要多就换一个版式。
+ */
 export type Item = {
-  /** 主标题 / 名称 */
-  title?: string;
-  /** 正文 */
-  body?: string;
-  /** 数值（字符串，允许 "63%"、"1,280"） */
-  value?: string;
-  /** 小标签 */
+  /** 卡片里画什么：文字/数字/环/柱/折线/图标/代码/图片 */
+  visual: Visual;
+  /** 角标，≤6 字，可缺省 */
   tag?: string;
-  /** 可选强调色（缺省用 theme.accent） */
-  accent?: string;
 };
 
 /** 场景的绘制函数：只依赖 items + theme + size + t */
@@ -63,26 +64,59 @@ export type Scene = {
 export function toItems(content: LayoutContent): Item[] {
   switch (content.kind) {
     case "cards":
-      return content.cards.map((c) => ({ title: c.title, body: c.body, tag: c.tag, value: c.value }));
+      return content.cards.map((c) => ({
+        visual: { kind: "text", text: short(c.title, 8), sub: c.tag ? short(c.tag, 6) : undefined },
+        tag: c.tag ? short(c.tag, 4) : undefined,
+      }));
     case "doc":
-      return content.paragraphs.map((p, i) => ({ title: p.slice(0, 18), tag: `${i + 1}` }));
-    case "chart":
-      return content.series.map((s) => ({ title: s.label, value: String(s.value) }));
+      // 文档类：一句一卡，标题压到 8 字以内
+      return content.paragraphs.slice(0, 10).map((p) => ({
+        visual: { kind: "text", text: short(p, 8) },
+      }));
+    case "chart": {
+      const vals = content.series.map((x) => x.value);
+      return [
+        { visual: { kind: "spark", values: vals, label: short(content.heading, 10) } },
+        { visual: { kind: "stat", value: formatNum(vals[vals.length - 1] ?? 0), label: short(content.metric.label, 8) } },
+        ...content.series.slice(0, 8).map((x) => {
+          const visual: Visual = { kind: "bars", values: [x.value], label: short(x.label, 6) };
+          return { visual, tag: short(x.label, 4) };
+        }),
+      ];
+    }
     case "timeline":
-      return content.events.map((e) => ({ title: e.title, body: e.body, tag: e.time }));
+      return content.events.slice(0, 8).map((e) => ({
+        visual: { kind: "text", text: short(e.title, 8), sub: short(e.time, 6) },
+        tag: short(e.time, 5),
+      }));
     case "map":
-      return content.places.map((p) => ({ title: p.name, body: p.note }));
+      return content.places.slice(0, 8).map((p) => ({
+        visual: { kind: "icon", shape: "dot", label: short(p.name, 6) } as Visual,
+        tag: short(p.name, 4),
+      }));
     case "code":
-      return content.code.slice(0, 24).map((l) => ({ title: l.trim() || " ", tag: "" }));
+      return content.code.slice(0, 6).map((l) => ({
+        visual: { kind: "code", lines: [l.trim().slice(0, 24)] },
+      }));
     case "title":
-      return [{ title: content.heading, body: content.subtitle, tag: content.kicker }];
+      return [{ visual: { kind: "text", text: short(content.heading, 8), sub: content.subtitle } }];
     case "stat":
-      return [{ value: content.value, title: content.label, body: content.note, tag: content.delta }];
+      return [{ visual: { kind: "stat", value: content.value, label: short(content.label, 8) } }];
     case "quote":
-      return [{ body: content.text, title: content.attribution, tag: content.kicker }];
+      return [{ visual: { kind: "text", text: short(content.text, 8), sub: content.attribution } }];
     case "atmosphere":
-      return content.text ? [{ title: content.text }] : [];
+      return content.text ? [{ visual: { kind: "text", text: short(content.text, 8) } }] : [];
     default:
       return [];
   }
+}
+
+/** 截到 n 个字，卡片里不允许出现长句 */
+export function short(text: string, n: number): string {
+  const s = (text ?? "").replace(/\s+/g, "").trim();
+  return s.length <= n ? s : s.slice(0, n);
+}
+
+function formatNum(v: number): string {
+  return v >= 1000 ? Math.round(v).toLocaleString("en-US") : String(Math.round(v * 10) / 10);
 }

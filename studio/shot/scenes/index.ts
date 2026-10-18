@@ -4,6 +4,7 @@
 // 写新场景时照抄下面任何一个的形状即可：一个 draw 函数 + 一条 motions 清单。
 
 import type { Item, Scene, SceneDraw } from "./types";
+import { drawVisual, fitText } from "./visuals";
 import type { Theme } from "../types";
 
 const FONT = '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif';
@@ -26,7 +27,10 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
   g.closePath();
 }
 
-/** 一张卡片：标题 + 正文 + 标签，用于下面几个场景 */
+/**
+ * 一张卡片 = 圆角容器 + 里面一个 visual + 可选角标。
+ * **不画长文字**：文字的量和长度由 visual 自己决定（见 visuals.ts）。
+ */
 function drawCard(
   g: CanvasRenderingContext2D,
   it: Item,
@@ -34,6 +38,7 @@ function drawCard(
   y: number,
   w: number,
   h: number,
+  t: number,
   theme: Theme,
   alpha = 1,
   scale = 1,
@@ -45,48 +50,29 @@ function drawCard(
   g.translate(-(x + w / 2), -(y + h / 2));
 
   g.shadowColor = theme.shadow;
-  g.shadowBlur = 28 * scale;
-  g.shadowOffsetY = 10 * scale;
-  g.fillStyle = theme.isLight ? "#ffffff" : "rgba(255,255,255,0.075)";
-  roundRect(g, x, y, w, h, 26 * scale);
+  g.shadowBlur = 30 * scale;
+  g.shadowOffsetY = 12 * scale;
+  g.fillStyle = theme.isLight ? "rgba(255,255,255,0.92)" : "rgba(18,28,44,0.55)";
+  roundRect(g, x, y, w, h, 24 * scale);
   g.fill();
   g.shadowColor = "transparent";
   g.shadowBlur = 0;
 
   g.strokeStyle = theme.panelBorder;
-  g.lineWidth = 1.5;
-  roundRect(g, x, y, w, h, 26 * scale);
+  g.lineWidth = 1.2;
+  roundRect(g, x, y, w, h, 24 * scale);
   g.stroke();
 
-  const pad = 30 * scale;
-  const innerW = w - pad * 2;
-  g.textBaseline = "top";
-
-  g.fillStyle = theme.text;
-  g.font = `600 ${Math.round(40 * scale)}px ${FONT}`;
-  g.fillText(fit(g, it.title ?? "", innerW), x + pad, y + pad);
-
-  if (it.value) {
-    g.fillStyle = theme.accent;
-    g.font = `700 ${Math.round(64 * scale)}px ${FONT}`;
-    g.fillText(fit(g, it.value, innerW), x + pad, y + pad + 56 * scale);
-  } else if (it.body) {
-    g.fillStyle = theme.textDim;
-    g.font = `400 ${Math.round(28 * scale)}px ${FONT}`;
-    // 正文最多两行，逐行截断
-    const words = it.body.replace(/\s+/g, " ").trim();
-    const per = Math.max(4, Math.floor(innerW / (26 * scale)));
-    for (let ln = 0; ln < 2; ln++) {
-      const seg = words.slice(ln * per, (ln + 1) * per);
-      if (!seg) break;
-      g.fillText(fit(g, seg, innerW), x + pad, y + pad + (56 + ln * 34) * scale);
-    }
-  }
+  const pad = 26 * scale;
+  drawVisual(g, it.visual, t, theme, x + pad, y + pad, w - pad * 2, h - pad * 2);
 
   if (it.tag) {
-    g.fillStyle = theme.accentSoft ?? theme.accent;
-    g.font = `500 ${Math.round(24 * scale)}px ${FONT}`;
-    g.fillText(fit(g, it.tag, innerW), x + pad, y + h - pad - 24 * scale);
+    g.fillStyle = theme.textFaint;
+    g.font = `500 ${Math.round(20 * scale)}px ${FONT}`;
+    g.textAlign = "right";
+    g.textBaseline = "alphabetic";
+    g.fillText(fitText(g, it.tag, w - pad * 2), x + w - pad, y + h - 14 * scale);
+    g.textAlign = "start";
   }
   g.restore();
 }
@@ -112,7 +98,7 @@ const flyRow: SceneDraw = (g, t, items, theme, size, variant) => {
     const d = Math.abs(cx - size.w / 2) / (size.w / 2);   // 0=正中 1=边缘
     const scale = 1 - 0.18 * Math.min(1, d);
     const alpha = 1 - 0.35 * Math.min(1, d);
-    drawCard(g, items[idx], x, y, cardW, cardH, theme, alpha, scale);
+    drawCard(g, items[idx], x, y, cardW, cardH, t, theme, alpha, scale);
   }
   // 常驻微动：整排呼吸
   void size;
@@ -130,7 +116,7 @@ const floatField: SceneDraw = (g, t, items, theme, size, variant) => {
     const cardH = cardW * 0.66;
     const x = (size.w * ((i * 0.37) % 1)) - cardW / 2 + Math.sin(t * 0.25 + r) * 26 * layer;
     const y = (size.h * ((i * 0.61) % 1)) - cardH / 2 + Math.cos(t * 0.21 + r) * 20 * layer;
-    drawCard(g, it, x, y, cardW, cardH, theme, 0.55 + 0.4 * layer, 1);
+    drawCard(g, it, x, y, cardW, cardH, t, theme, 0.55 + 0.4 * layer, 1);
   }
 };
 
@@ -155,7 +141,8 @@ const starfield: SceneDraw = (g, t, items, theme, size) => {
     g.fillRect(x, y, s, s);
   }
 
-  const label = items[0]?.title;
+  const v0 = items[0]?.visual;
+  const label = v0 && v0.kind === "text" ? v0.text : undefined;
   if (label) {
     g.fillStyle = theme.text;
     g.font = `300 ${Math.round(gW * 0.052)}px ${FONT}`;
