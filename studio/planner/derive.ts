@@ -149,16 +149,30 @@ function buildTimeline(text: string, start: number, warn: (k: string, d: string)
   return { kind: "timeline", heading: titleOf(text), subtitle: firstSentence(text, 22), events };
 }
 
-function buildCode(text: string, warn: (k: string, d: string) => void): CodeContent {
+function buildCode(text: string, warn: (k: string, d: string) => void, context?: string): CodeContent {
   // 只从文本里认「明显是代码/文件名」的片段；认不出就用示例并报 warning
   const tokens = Array.from(text.matchAll(/`([^`]+)`|\b([A-Z][A-Za-z0-9_]*\.(?:ts|js|json|md)|[a-z_]+_[a-z_]+)\b/g))
     .map((m) => m[1] || m[2])
     .filter(Boolean) as string[];
   const ss = sentences(text);
-  if (tokens.length === 0) warn("code.code", "本段没有可识别的代码片段，代码行用示例占位");
+  // 抽不到真代码时，**不要塞一段固定的占位代码**——版式会循环绘制那几行，
+  // 屏幕上就会出现同一段代码重复五遍（实测 t=2s 的 code 镜头就是这样）。
+  // 改成把本段口播原文写成注释：既唯一、又是诚实的（那就是稿子本身）。
+  if (tokens.length === 0) warn("code.code", "本段没有可识别的代码片段，代码行改为口播原文注释");
+  // 行数必须够：版式会把 code[] 循环绘制，少于可见行数（约 18 行）就会整段重复。
+  // 所以注释行取自「上下文长文」，保证每行都不一样。
+  const src = context && Array.from(context).length > Array.from(text).length * 1.5 ? context : text;
+  const lines = sentences(src).slice(0, 22).map((x) => `// ${Array.from(x).slice(0, 24).join("")}`);
   const code = tokens.length
-    ? tokens.slice(0, 10).map((t, i) => `${"  ".repeat(i % 3)}// ${t}`)
-    : ["// 示例：本段没有具体代码", "const answer = 42;", "", "export default answer;"];
+    ? tokens.slice(0, 12).map((t, i) => `${"  ".repeat(i % 3)}// ${t}`)
+    : [
+        ...lines,
+        "",
+        "// —— 以下为示意结构 ——",
+        "export function explain(input: Script) {",
+        "  return plan(input); // 分镜",
+        "}",
+      ];
   return {
     kind: "code",
     heading: titleOf(text),
@@ -221,7 +235,7 @@ export function deriveContent(
     case "timeline":
       return buildTimeline(text, start, warn);
     case "code":
-      return buildCode(text, warn);
+      return buildCode(text, warn, context);
     case "map":
       return buildMap(text, warn);
     case "doc":

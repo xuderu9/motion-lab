@@ -5,10 +5,30 @@
     {
       "name": "desk-night",
       "label": "夜景桌面",
-      "prefer": ["chart", "cards"],
+      "prefer": [
+        "chart",
+        "cards"
+      ],
       "env": {
         "src": "plates/desk-night.png",
-        "quad": [[468, 416], [946, 416], [1065, 777], [585, 849]],
+        "quad": [
+          [
+            468,
+            416
+          ],
+          [
+            946,
+            416
+          ],
+          [
+            1065,
+            777
+          ],
+          [
+            585,
+            849
+          ]
+        ],
         "cornerRadius": 76,
         "exposure": 1.14
       }
@@ -16,32 +36,94 @@
     {
       "name": "window-day",
       "label": "白天窗边",
-      "prefer": ["code", "timeline"],
+      "prefer": [
+        "code",
+        "timeline"
+      ],
       "env": {
         "src": "plates/window-day.png",
-        "quad": [[377, 254], [919, 196], [1101, 688], [580, 821]],
+        "quad": [
+          [
+            355,
+            240
+          ],
+          [
+            929,
+            178
+          ],
+          [
+            1122,
+            700
+          ],
+          [
+            570,
+            841
+          ]
+        ],
         "cornerRadius": 76,
         "exposure": 0.749
-      }
+      },
+      "_quadScale": 1.06
     },
     {
       "name": "dusk-study",
       "label": "黄昏书房",
-      "prefer": ["doc", "map"],
+      "prefer": [
+        "doc",
+        "map"
+      ],
       "env": {
         "src": "plates/dusk-study.png",
-        "quad": [[496, 524], [1032, 467], [1161, 852], [586, 933]],
+        "quad": [
+          [
+            477,
+            514
+          ],
+          [
+            1045,
+            453
+          ],
+          [
+            1182,
+            861
+          ],
+          [
+            572,
+            947
+          ]
+        ],
         "cornerRadius": 76,
         "exposure": 1.367
-      }
+      },
+      "_quadScale": 1.06
     },
     {
       "name": "office-bright",
       "label": "明亮办公室",
-      "prefer": ["cards", "chart"],
+      "prefer": [
+        "cards",
+        "chart"
+      ],
       "env": {
         "src": "plates/office-bright.png",
-        "quad": [[888, 378], [1424, 364], [1298, 833], [744, 778]],
+        "quad": [
+          [
+            888,
+            378
+          ],
+          [
+            1424,
+            364
+          ],
+          [
+            1298,
+            833
+          ],
+          [
+            744,
+            778
+          ]
+        ],
         "cornerRadius": 76,
         "exposure": 0.557
       }
@@ -49,12 +131,35 @@
     {
       "name": "closeup",
       "label": "平板特写（屏占 22%，文字最大）",
-      "prefer": ["doc", "code"],
-      "allowedThemes": ["light", "warm-sand"],
+      "prefer": [
+        "doc",
+        "code"
+      ],
+      "allowedThemes": [
+        "light",
+        "warm-sand"
+      ],
       "_why": "屏占比 22.29%：暗主题屏内只有 ~50，整帧会掉到 77，曝光再怎么抬都救不回来（房间会先爆）。所以这个环境只配亮主题——这不是妥协，是算出来的约束。详见 PLATE-SPEC §4.4。",
       "env": {
         "src": "plates/closeup.png",
-        "quad": [[538, 219], [1306, 248], [1456, 785], [630, 839]],
+        "quad": [
+          [
+            538,
+            219
+          ],
+          [
+            1306,
+            248
+          ],
+          [
+            1456,
+            785
+          ],
+          [
+            630,
+            839
+          ]
+        ],
         "cornerRadius": 76,
         "exposure": 1.236
       }

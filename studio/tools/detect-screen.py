@@ -209,6 +209,57 @@ def refine_quad(L, quad, n=90, radius=26, iters=6, min_resp=6.0):
     return Q, True
 
 
+def optimize_edges(L, quad, search=(-40, 70), gap=8, n=61, rounds=2, verbose=True):
+    """把每条边独立沿法线平移，最大化「跨边界亮度台阶」。
+
+    为什么不能只靠梯度吸附：屏幕边缘有暗角、反光、状态栏图标，梯度极大值可能落在
+    屏幕内部（实测 window-day 四角系统性内缩 20~40px，而 +/-26px 的吸附每次都收敛到
+    同一条错的线）。屏幕和边框的本质差别是**亮度台阶**：屏内亮、边框黑。
+    所以直接把「边上 N 个采样点，内外各取 gap 像素的平均亮度差」当目标函数，
+    对每条边的平移量做 1px 步长的穷举搜索 —— 这是有明确目标函数的参数，该搜不该猜。
+    """
+    Q = quad.copy()
+    for rd in range(rounds):
+        for e in range(4):
+            p, q = Q[e], Q[(e + 1) % 4]
+            d = q - p
+            ln = float(np.hypot(d[0], d[1]))
+            if ln < 1:
+                continue
+            nrm = np.array([-d[1], d[0]]) / ln          # 边的法线
+            mid = (p + q) / 2
+            # 统一让法线指向外侧（远离四边形中心）
+            if np.dot(nrm, mid - Q.mean(axis=0)) < 0:
+                nrm = -nrm
+
+            def score(shift):
+                tot, cnt = 0.0, 0
+                for k in range(n):
+                    t = 0.08 + 0.84 * k / (n - 1)       # 端点不可靠，跳过
+                    base = p + d * t + nrm * shift
+                    o = base + nrm * gap
+                    i = base - nrm * gap
+                    if not (0 <= o[0] < 1920 and 0 <= o[1] < 1080):
+                        continue
+                    if not (0 <= i[0] < 1920 and 0 <= i[1] < 1080):
+                        continue
+                    tot += float(L[int(i[1]), int(i[0])] - L[int(o[1]), int(o[0])])
+                    cnt += 1
+                return tot / cnt if cnt >= n // 2 else -1e9
+
+            best_s, best_v = 0, score(0)
+            for s in range(search[0], search[1] + 1, 1):
+                v = score(float(s))
+                if v > best_v:
+                    best_v, best_s = v, s
+            # 整条边平移 best_s
+            Q[e] = p + nrm * best_s
+            Q[(e + 1) % 4] = q + nrm * best_s
+            if verbose:
+                print("    边%d 外移 %+dpx  台阶 %.1f" % (e, best_s, best_v))
+    return Q
+
+
 def quad_metrics(quad, L):
     h, w = L.shape
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
@@ -258,6 +309,12 @@ def main():
     ap.add_argument("--seed", default=None, help="手动给一个屏幕内的像素坐标 x,y（自动失败时用）")
     ap.add_argument("--name", default=None, help="环境名，写进 env json 的 src")
     ap.add_argument("--light-only", action="store_true", help="只配亮主题的环境（按亮页帧定标）")
+    ap.add_argument("--seed-quad", default=None,
+                    help="从一个已知四边形出发 x1,y1;x2,y2;x3,y3;x4,y4（1920 空间）")
+    ap.add_argument("--radius-seq", default="26",
+                    help="分级吸附半径，从粗到细，逗号分隔，如 90,60,36,20,10")
+    ap.add_argument("--optimize-edges", action="store_true",
+                    help="吸附后再按「跨边界亮度台阶」逐边搜索平移量（屏幕有暗角时必需）")
     args = ap.parse_args()
 
     im = Image.open(args.plate).convert("RGB").resize((1920, 1080), Image.LANCZOS)
@@ -268,18 +325,41 @@ def main():
     if args.seed:
         seed = tuple(float(v) for v in args.seed.split(","))
     pts, n_ok = segment_screen(a, edge_thresh=args.edge_thresh, seed=seed)
-    if pts is None:
+    if pts is None and not args.seed_quad:
         print("没找到像屏幕的区域。用 --seed x,y 指定一个屏幕内的点", file=sys.stderr)
         return 2
-    guess = quad_from_points(pts)
+    guess = quad_from_points(pts) if pts is not None else None
 
     blur = np.asarray(
         Image.fromarray(np.clip(L, 0, 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(1.2))
     ).astype(np.float32)
-    quad, snapped = refine_quad(blur, guess)
+
+    # 初始四边形：给了 --seed-quad 就用它（用于「已有个近似解，只要重新吸附」）
+    if args.seed_quad:
+        nums = [float(v) for v in args.seed_quad.replace(";", ",").split(",")]
+        if len(nums) != 8:
+            print("--seed-quad 需要 4 个点共 8 个数", file=sys.stderr)
+            return 2
+        guess = np.array([[nums[0], nums[1]], [nums[2], nums[3]],
+                          [nums[4], nums[5]], [nums[6], nums[7]]])
+        print("  从 seed-quad 出发")
+
+    # 分级吸附：先大半径（能跳出粗定位的偏差），再小半径（收敛精度）。
+    # 只用 ±26 一个半径时，粗定位偏内超过 26px 就永远够不到真实边缘
+    # —— 实测 window-day 的四角系统性内缩了 45~60px。
+    radii = [int(v) for v in (args.radius_seq or "26").split(",") if v.strip()]
+    quad = guess
+    snapped = False
+    for r in radii:
+        quad, ok = refine_quad(blur, quad, radius=r, iters=3 if r > 30 else 4)
+        print("  吸附 r=±%-3d %s" % (r, "ok" if ok else "failed"))
+        snapped = snapped or ok
     if not snapped:
-        print("! 边缘吸附失败，退回极值点结果（可能不准，务必看叠加图）")
-        quad = guess
+        print("! 边缘吸附全失败，可能不准，务必看叠加图")
+
+    if args.optimize_edges:
+        print("  逐边搜索（目标 = 跨边界亮度台阶）：")
+        quad = optimize_edges(blur, quad)
 
     m = quad_metrics(quad, blur)
     a_frac = m["area_pct"] / 100.0

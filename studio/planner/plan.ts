@@ -89,8 +89,10 @@ for (let i = 0; i < segs.length; i++) {
   const warn = (kind: string, detail: string) => warnings.push({ shotId, kind, detail });
 
   // 上下文：本段前后各 2 段。doc 版式需要足够多的字才不会循环重复
-  const ctxFrom = Math.max(0, i - 2);
-  const ctxTo = Math.min(segs.length, i + 3);
+  // 上下文窗口 ±5 段：code 版式把口播原文当注释逐行画，行数必须超过可见行数（约 18 行），
+  // 否则版式会循环绘制、整段重复。doc 用同一份上下文也更连贯。
+  const ctxFrom = Math.max(0, i - 5);
+  const ctxTo = Math.min(segs.length, i + 6);
   const context = segs.slice(ctxFrom, ctxTo).map((x) => x.text).join("");
   const content = deriveContent(a.layout, seg.text, seg.start - base, warn, context);
   const envEntry = pickEnvironment(reg, a.layout, a.theme, i);
