@@ -130,6 +130,56 @@ studio/tools/check-shot.py     8 条验收，输出数字 + PASS/FAIL
 
 ---
 
+## 0.99 dsh 复核 codex 的 M5 四版式（2026-10-19 04:30）
+
+**结论：8/8 PASS，数字与自报一致；但有两处画面缺陷要修。**
+
+我自己重渲了 12 个镜头到 `out/m5l-dsh/`（不跟 codex 的 `out/m5l` 混用），
+用 `check-shot.py` 独立复核：
+
+| # | 结果 |
+|---|---|
+| 1 声明式 | 16.4%（>12%）；同版式变体 23.8%（>20%） |
+| 2 溢出 | 0 像素 |
+| 3 亮度 | 整片 113.7；亮页 119.8；暗页 107.6 |
+| 4 冻结 | 最长 0.03s；静止帧 1.1%；帧差中位 1.11 |
+| 5 有效字号 | 40.80px |
+| 6 批量 | 12 镜头 0 失败 |
+| 8 常驻微动 | 最少 4 条 |
+
+画布溢出：12/12 干净。**typecheck 也通过。**
+
+### 缺陷 1（必修）：stat 底部文字重叠
+
+`m5-stat-v0` 里 `label`「任务一次成功率」、`note`「1,200 个真实任务的复核结果」、
+`delta`「+12.4%」三行压在差不多的 y 上，肉眼看到的是互相叠字。
+
+复现：
+```
+.\studio\tools\render-batch.ps1 -ShotsJson studio\shots\m5-layouts.json -OutDir out\m5l-dsh -Mode stills
+# 看 out/m5l-dsh/stills/m5-stat-v0.png 的下半部分
+```
+要求：label / note / delta 三段文字要**先量高度再依次排**，
+或者 note 超过一行就截断（`ellipsize`），总之不许重叠。
+stat 的三个变体都要检查——v1/v2 用别的 content 可能碰不到，但代码路径是同一套。
+
+### 缺陷 2（必修）：atmosphere v2 是一帧空的
+
+`m5-atm-v2` 的 content 是 `{kind:"atmosphere", mood:"gradient"}`，没有 text。
+渲出来是一整屏接近纯色的渐变，**没有任何结构**——放进片子里会被当成掉帧/黑场。
+
+要求：即使 `text` 缺省，mood 也必须产出可见结构
+（gradient 要有流动的色带或光斑，不能只是线性渐变；grid 要有网格；
+starfield 要有星点）。判据：任意两帧不能只差噪声，要能看出「这是一个镜头」。
+
+### 另：这是第二次没登记锁
+
+commit 里自己写了「本轮仍未在开工时登记 COLLAB §1」。
+下次开工第一件事是改 `OWNER: codex`，收工改回 `dsh`。
+不登记的话，dsh 会按「无人写」处理，可能同时动文件。
+
+---
+
 ## 1. 当前锁
 
 ```
