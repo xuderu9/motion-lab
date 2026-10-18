@@ -1,0 +1,260 @@
+{
+  "note": "M5 全屏版式验收：title / stat / quote / atmosphere 各 3 变体 = 12 镜头。presentation=full，画布即整帧。",
+  "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+  "shots": [
+    {
+      "id": "m5-title-v0",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "title",
+      "variant": 0,
+      "theme": "light",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "title",
+        "kicker": "第一章",
+        "heading": "三次范式转移",
+        "subtitle": "从补全，到对话，到代理",
+        "footnote": "2017 — 2026"
+      }
+    },
+    {
+      "id": "m5-title-v1",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "title",
+      "variant": 1,
+      "theme": "deep-blue",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "title",
+        "kicker": "第二章",
+        "heading": "为什么现在必须重做工作流",
+        "subtitle": "模型能力每 18 个月翻一倍，流程却还停在上一代",
+        "footnote": "一份写给一线执行者的观察"
+      }
+    },
+    {
+      "id": "m5-title-v2",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "title",
+      "variant": 2,
+      "theme": "warm-sand",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "title",
+        "kicker": "结论",
+        "heading": "把判断留给人，把执行交给模型",
+        "subtitle": "一人公司的分工正在被重写",
+        "footnote": "OPC · 2026"
+      }
+    },
+    {
+      "id": "m5-stat-v0",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "stat",
+      "variant": 0,
+      "theme": "cool-teal",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "stat",
+        "value": "63%",
+        "label": "任务一次成功率",
+        "delta": "+12.4%",
+        "note": "1,200 个真实任务的复核结果"
+      }
+    },
+    {
+      "id": "m5-stat-v1",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "stat",
+      "variant": 1,
+      "theme": "light",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "stat",
+        "value": "18 个月",
+        "label": "能力翻倍周期",
+        "delta": "−6 个月",
+        "note": "对比 2023 年的公开估算"
+      }
+    },
+    {
+      "id": "m5-stat-v2",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "stat",
+      "variant": 2,
+      "theme": "deep-blue",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "stat",
+        "value": "3.2×",
+        "label": "单周产出提升",
+        "delta": "+0.8×",
+        "note": "同一个人、同一套工具"
+      }
+    },
+    {
+      "id": "m5-quote-v0",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "quote",
+      "variant": 0,
+      "theme": "warm-sand",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "quote",
+        "kicker": "一条工作原则",
+        "text": "模型不会替你决定做什么，但能替你做完。",
+        "attribution": "—— 内部总结"
+      }
+    },
+    {
+      "id": "m5-quote-v1",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "quote",
+      "variant": 1,
+      "theme": "cool-teal",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "quote",
+        "kicker": "观察",
+        "text": "真正的瓶颈不是模型不够聪明，而是我们还没学会把问题拆对。",
+        "attribution": "—— 2026 年复盘"
+      }
+    },
+    {
+      "id": "m5-quote-v2",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "quote",
+      "variant": 2,
+      "theme": "light",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "quote",
+        "kicker": "结论",
+        "text": "当执行变得便宜，判断力就成了唯一的稀缺品。",
+        "attribution": "—— 给团队的一封信"
+      }
+    },
+    {
+      "id": "m5-atm-v0",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "atmosphere",
+      "variant": 0,
+      "theme": "deep-blue",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "atmosphere",
+        "mood": "starfield",
+        "text": "想象力"
+      }
+    },
+    {
+      "id": "m5-atm-v1",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "atmosphere",
+      "variant": 1,
+      "theme": "warm-sand",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "atmosphere",
+        "mood": "grid",
+        "text": "秩序"
+      }
+    },
+    {
+      "id": "m5-atm-v2",
+      "durationInFrames": 180,
+      "fps": 30,
+      "layout": "atmosphere",
+      "variant": 2,
+      "theme": "cool-teal",
+      "presentation": "full",
+      "env": {
+        "src": "plates/bg-arc-dark-1.png",
+        "quad": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+        "cornerRadius": 76,
+        "exposure": 1.0
+      },
+      "content": {
+        "kind": "atmosphere",
+        "mood": "gradient"
+      }
+    }
+  ]
+}

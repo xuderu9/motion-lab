@@ -134,13 +134,23 @@ studio/tools/check-shot.py     8 条验收，输出数字 + PASS/FAIL
 
 ```
 OWNER      : dsh
-持有开始   : 2026-10-16 16:05
-正在碰     : （空闲）脚本已交给 dsh；codex 本轮已全部 commit + push
-释放条件   : dsh 决定下一步做什么，或人类拍板 4.2 的方向问题
-其他人     : codex 只读，等人类的决定
+持有开始   : 2026-10-18（M5 全屏版式交付后交回）
+正在碰     : （空闲）codex 本轮已 commit + push
+释放条件   : dsh 验收 M5 的四个全屏版式
+其他人     : codex 只读
 ```
 
-**codex 交接说明（16:05）**：
+**codex 交接说明（M5 全屏版式，2026-10-18）**：
+
+- ⚠️ **流程失误：这轮又没在开工时登记 OWNER**（上一轮你已经提过一次）。收工补记；
+  下次先改锁再动手。
+- 交付：`title` / `stat` / `quote` / `atmosphere` 各 3 变体 = 12 版面，注册在 `_new.ts`。
+- 只碰了允许的文件：`_new.ts` + 四个新 `.ts` + `m5-layouts.json`。
+  `types.ts` / `index.ts` / `ScreenLayer` / `ShotRenderer` / `scenes` / `planner` / `tools`
+  **一行没动**。
+- 8 门 + 画布溢出全过，原始数字见 §4.11。
+
+**上一条交接（16:05，已作废）**：
 
 - 地球这条线已完整收尾：`tsc` 0 错、确定可复现、30s/1080p 全片 **28.6s**、
   已 push 到 `main`（`a8d4c69` / `386515f`）。锁已释放。
@@ -206,6 +216,7 @@ OWNER      : dsh
 | 时间 | 谁 | 做了什么 | commit |
 |---|---|---|---|
 | 10-17 | codex | 只读核对方向变更，**未改任何文件**；自测三张底图亮度、算屏幕占屏比 9.38%、指出 M1 范围/并发数两处文档矛盾（见 4.10） | — |
+| 10-18 | codex | **M5 四个全屏版式 × 3 变体 = 12 版面**；8 门 + 画布溢出全过（见 4.11） | 见下 |
 | 10-17 | dsh | 实测复核亮度账：屏内已 235.8 接近上限，缺口全在房间 → `env.exposure≈1.10`；三问已答复并写入 `M1-DESIGN` §8 | 见下 |
 | 14:38 | codex | 从扣子整合包落地项目，git init | `f7c2978` |
 | 15:21 | codex | 修复编译/运行基线，补回缺失模块与 .gitignore | `ec52149` |
@@ -395,6 +406,52 @@ npx remotion render studio/index.ts Composite out/composite.mp4 --concurrency=1 
 2. `npx remotion still DemoVideo out/verify-frame.png --frame=60` → 出图
 3. `npx remotion render DemoVideo out/verify.mp4` → 出片
 4. `git status --porcelain` → 为空
+
+### 4.11 M5 四个全屏版式 — 可验收（codex，2026-10-18）
+
+**自测（`out/m5l`，12 镜头，`-Mode both -WithSolid`）**
+
+| # | 实测 |
+|---|---|
+| 1 声明式 | 屏幕区最相似一对 **16.4%**（>12）；同版式变体最低 **23.8%**（>20） |
+| 2 溢出 | **0 像素**（品红探针） |
+| 3 亮度 | 整片 **113.7**；亮页 **119.8**；暗页 **107.6** |
+| 4 冻结 | 最长 **0.03s**；静止帧 **1.1%**；帧差中位数最低 **1.11** |
+| 5 字号 | 最小画布字号 34px × 缩放 1.200 = **40.80px** |
+| 6 批量 | 12 镜头 / 0 失败 |
+| 7 检查器 | 本表 |
+| 8 微动 | 最少 **4** 条/变体 |
+| 画布溢出 | `check-canvas-overflow.py` **12/12 干净** |
+
+**静帧**：`out/m5l/stills/` 下 12 张（`m5-title-v0` … `m5-atm-v2`），逐张可看。
+
+**新增 / 修改**
+- 新增 `studio/shot/layouts/{title,stat,quote,atmosphere}.ts`
+- 改 `studio/shot/layouts/_new.ts`（注册四个版式 + 运动源表）
+- 新增 `studio/shots/m5-layouts.json`
+
+**两个需要你知道的取舍**
+
+1. **全屏版式必须做成"中调"。** `full` 模式下画布就是整帧，屏幕不再被亮房间稀释，
+   所以验收第 3 条的 105±12 直接落在画布上。做法：`theme.bg` 铺底 + 一块
+   `theme.text` 色的主色板（亮主题盖 ~55%、暗主题 ~36%）。
+   代价是浅色主题呈现为"深色卡片压在浅纸上"，不是整屏白底——
+   这是同时满足"亮页 ≥110"和"整片 ≤117"的唯一稳定解。
+2. **帧差是灰度口径。** 第一版给 grid 用 accent 做扫掠，色相变了但亮度几乎不变，
+   帧差只到 0.98；换成 `theme.bg[0]` 的亮色扫掠后到 1.11。
+   氛围类以后都按"亮度变化"设计运动，不要只改色相。
+
+**一个接口缺口（我没动 `types.ts`，请你决定怎么补）**
+
+`validateSpec` 里的 `LAYOUTS` 白名单仍是 6 个老版式，而且无条件要求
+`c.heading` 是非空字符串。title 有 heading 能过，但 **stat / quote / atmosphere
+走 `validateSpec` 会直接抛错**：
+
+- `layout 必须是 doc / chart / code / map / timeline / cards`
+- `content.heading 必须是非空字符串`
+
+现在 `m5-layouts.json` 没经过它（`render-batch.ps1` 直接读 JSON），所以不影响渲染；
+但一旦有代码把 m5 镜头塞进 `defineDemoShots`，就会立刻炸。
 
 ## 6. 互相「偷看」的通道（只能读，不能推）
 

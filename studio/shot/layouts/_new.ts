@@ -15,19 +15,23 @@
 //   5. 颜色一律从 theme 取，不许写死色值（chrome.ts 里有 withAlpha 之类的工具）
 
 import type { LayoutDraw } from "../types";
+import { ATMOSPHERE_MOTION_SOURCES, ATMOSPHERE_VARIANTS } from "./atmosphere";
+import { QUOTE_MOTION_SOURCES, QUOTE_VARIANTS } from "./quote";
+import { STAT_MOTION_SOURCES, STAT_VARIANTS } from "./stat";
+import { TITLE_MOTION_SOURCES, TITLE_VARIANTS } from "./title";
 
 export type NewLayoutName = "title" | "stat" | "quote" | "atmosphere";
 
 export const NEW_LAYOUTS: Partial<Record<NewLayoutName, LayoutDraw[]>> = {
-  // title: TITLE_VARIANTS,
-  // stat: STAT_VARIANTS,
-  // quote: QUOTE_VARIANTS,
-  // atmosphere: ATMOSPHERE_VARIANTS,
+  title: TITLE_VARIANTS,
+  stat: STAT_VARIANTS,
+  quote: QUOTE_VARIANTS,
+  atmosphere: ATMOSPHERE_VARIANTS,
 };
 
 export const NEW_MOTION_SOURCES: Partial<Record<NewLayoutName, Record<number, string[]>>> = {
-  // title: TITLE_MOTION_SOURCES,
-  // stat: STAT_MOTION_SOURCES,
-  // quote: QUOTE_MOTION_SOURCES,
-  // atmosphere: ATMOSPHERE_MOTION_SOURCES,
+  title: TITLE_MOTION_SOURCES,
+  stat: STAT_MOTION_SOURCES,
+  quote: QUOTE_MOTION_SOURCES,
+  atmosphere: ATMOSPHERE_MOTION_SOURCES,
 };
