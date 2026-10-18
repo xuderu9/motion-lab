@@ -29,7 +29,7 @@
             849
           ]
         ],
-        "cornerRadius": 76,
+        "cornerRadius": 110,
         "exposure": 1.14
       }
     },
@@ -44,26 +44,26 @@
         "src": "plates/window-day.png",
         "quad": [
           [
-            355,
-            240
+            366,
+            247
           ],
           [
-            929,
-            178
+            924,
+            187
           ],
           [
-            1122,
-            700
+            1112,
+            694
           ],
           [
-            570,
-            841
+            575,
+            831
           ]
         ],
-        "cornerRadius": 76,
+        "cornerRadius": 110,
         "exposure": 0.749
       },
-      "_quadScale": 1.06
+      "_quadScale": 1.03
     },
     {
       "name": "dusk-study",
@@ -76,26 +76,26 @@
         "src": "plates/dusk-study.png",
         "quad": [
           [
-            477,
-            514
+            486,
+            519
           ],
           [
-            1045,
-            453
+            1038,
+            460
           ],
           [
-            1182,
-            861
+            1171,
+            857
           ],
           [
-            572,
-            947
+            579,
+            940
           ]
         ],
-        "cornerRadius": 76,
+        "cornerRadius": 110,
         "exposure": 1.367
       },
-      "_quadScale": 1.06
+      "_quadScale": 1.03
     },
     {
       "name": "office-bright",
@@ -124,7 +124,7 @@
             778
           ]
         ],
-        "cornerRadius": 76,
+        "cornerRadius": 110,
         "exposure": 0.557
       }
     },
@@ -160,7 +160,7 @@
             839
           ]
         ],
-        "cornerRadius": 76,
+        "cornerRadius": 110,
         "exposure": 1.236
       }
     }

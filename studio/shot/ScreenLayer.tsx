@@ -24,6 +24,17 @@ export function paintScreen(g: CanvasRenderingContext2D, frame: number, fps: num
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
+  // 深色垫底：先把**整个四边形**涂成接近黑边框的颜色，再在上面画圆角内容。
+  //
+  // 为什么需要：即梦生成的背景板里，那块「屏幕」四个角的圆角半径并不一致
+  // （实测同一块板 TL 差 1px、BR 差 25px）。用单一半径的圆角矩形去盖，
+  // 必然有角盖不满，而背景板那里是**浅灰色占位屏**——露出来的就是一弯亮色，
+  // 人眼立刻读成「四角没对齐」。
+  // 垫一层深色之后，同一条缝变成设备角部的阴影，视觉上就是对的。
+  // 这是「盖不严时宁可偏暗」的取舍：暗缝像阴影，亮缝像 bug。
+  g.fillStyle = "#0a0c10";
+  g.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
   // 圆角裁剪：在画布内部裁比 CSS border-radius 可靠 ——
   // 透视变换后不出锯齿，而且画布四角变透明，透出的是背景板上真实的屏幕反光。
   g.save();
