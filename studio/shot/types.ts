@@ -352,6 +352,12 @@ export type ShotSpec = {
    * full / plate 模式**不需要 env 的 quad 准确**，也不会去贴合背景板。
    */
   presentation?: Presentation;
+  /**
+   * 场景名（见 studio/shot/scenes）。给了就**替代** layout 的绘制：
+   * 场景吃 toItems(content) 得到的条目，所以同一个场景能作用于任何内容。
+   * 缺省 = 不启用，按 layout 画（现有行为）。
+   */
+  scene?: string;
   overlay?: OverlaySpec;
   /**
    * 仅供验收：设为 "solid" 时整块屏幕画成纯品红，

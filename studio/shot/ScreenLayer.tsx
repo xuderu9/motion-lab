@@ -13,6 +13,8 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 import type { ShotSpec, Theme, LayoutSize } from "./types";
 import { CANVAS_H, CANVAS_W } from "./types";
 import { paintLayout } from "./layouts";
+import { getScene } from "./scenes";
+import { toItems } from "./scenes/types";
 import { homographyMatrix3d } from "./homography";
 import { scanlines, screenNoise, sheen, tintBreath } from "./chrome";
 import { useLayoutEffect, useRef } from "react";
@@ -75,7 +77,10 @@ export function paintScreen(
   g.scale(camScale, camScale);
   g.translate(-W / 2, -H / 2);
 
-  paintLayout(g, t, spec.layout, spec.variant, spec.content, theme, size);
+  // 有场景就用场景（吃条目，与内容解耦）；否则按 layout 画
+  const scene = getScene(spec.scene);
+  if (scene) scene.draw(g, t, toItems(spec.content), theme, size, spec.variant);
+  else paintLayout(g, t, spec.layout, spec.variant, spec.content, theme, size);
 
   g.restore();
 
