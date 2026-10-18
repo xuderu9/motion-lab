@@ -8,7 +8,8 @@ import { CARDS_MOTION_SOURCES, CARDS_VARIANTS } from "./cards";
 import { CODE_MOTION_SOURCES, CODE_VARIANTS } from "./code";
 import { MAP_MOTION_SOURCES, MAP_VARIANTS } from "./map";
 import { TIMELINE_MOTION_SOURCES, TIMELINE_VARIANTS } from "./timeline";
-import type { LayoutDraw, LayoutName, LayoutContent, Theme, Variant } from "../types";
+import { NEW_LAYOUTS, NEW_MOTION_SOURCES } from "./_new";
+import type { LayoutDraw, LayoutName, LayoutContent, Theme, Variant, LayoutSize } from "../types";
 
 export const LAYOUTS: Record<LayoutName, LayoutDraw[]> = {
   doc: DOC_VARIANTS,
@@ -17,6 +18,11 @@ export const LAYOUTS: Record<LayoutName, LayoutDraw[]> = {
   map: MAP_VARIANTS,
   timeline: TIMELINE_VARIANTS,
   cards: CARDS_VARIANTS,
+  // 四个全屏版式由 codex 在 _new.ts 里注册；没填之前是占位实现，渲染成空画面
+  title: NEW_LAYOUTS.title ?? [],
+  stat: NEW_LAYOUTS.stat ?? [],
+  quote: NEW_LAYOUTS.quote ?? [],
+  atmosphere: NEW_LAYOUTS.atmosphere ?? [],
 };
 
 /** 每个版式 × 变体的常驻运动源清单，供 check-shot.py 核对验收第 8 条 */
@@ -27,6 +33,10 @@ export const MOTION_SOURCES: Record<LayoutName, Record<number, string[]>> = {
   map: MAP_MOTION_SOURCES,
   timeline: TIMELINE_MOTION_SOURCES,
   cards: CARDS_MOTION_SOURCES,
+  title: NEW_MOTION_SOURCES.title ?? {},
+  stat: NEW_MOTION_SOURCES.stat ?? {},
+  quote: NEW_MOTION_SOURCES.quote ?? {},
+  atmosphere: NEW_MOTION_SOURCES.atmosphere ?? {},
 };
 
 export function getLayoutDraw(layout: LayoutName, variant: Variant): LayoutDraw {
@@ -44,8 +54,9 @@ export function paintLayout(
   variant: Variant,
   content: LayoutContent,
   theme: Theme,
+  size?: LayoutSize,
 ) {
-  getLayoutDraw(layout, variant)(g, t, content, theme, variant);
+  getLayoutDraw(layout, variant)(g, t, content, theme, variant, size);
 }
 
 export type { LayoutDraw };

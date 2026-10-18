@@ -29,6 +29,13 @@ export function scoreLayouts(f: Features): ScoreMap {
     code: 2.5 * code,
     cards: 1.8 * en + 0.4 * num,
     doc: 0.6,
+    // 四个全屏版式（title/stat/quote/atmosphere）**不按文案内容打分**：
+    // 它们是「这一段该用什么节奏」的问题，由规划器的角色分配决定（见 M5 设计）。
+    // 这里恒为 0，配合 supportsLayout() 里恒 false，保证它们不会被内容打分选中。
+    title: 0,
+    stat: 0,
+    quote: 0,
+    atmosphere: 0,
   };
 }
 

@@ -181,29 +181,112 @@ export type CardsContent = {
   tags?: string[];
 };
 
+// ---------------------------------------------------------------------------
+// M5 全屏版式：标题卡 / 大数字 / 引用 / 氛围
+//
+// 这四个是参考片里占比最大、而我们完全没有的一类（见 out/ref-analysis）：
+// 拆片 161 秒里约 30% 是纯氛围或大字卡，~40% 是全屏 UI/图表，
+// 「画面里有个屏幕」只占 ~5%。所以这四个版式天生按整帧设计，
+// 也允许被放进平板屏幕里（同一个函数、不同 size）。
+// ---------------------------------------------------------------------------
+
+/** 大字标题卡 */
+export type TitleContent = {
+  kind: "title";
+  /** 主标题，最大的一行 */
+  heading: string;
+  /** 副标题 */
+  subtitle?: string;
+  /** 顶部小字，如「第三章」 */
+  kicker?: string;
+  /** 底部一行小字 */
+  footnote?: string;
+};
+
+/** 单数字卡：一个数字撑满画面 */
+export type StatContent = {
+  kind: "stat";
+  /** 数字本身，字符串，允许 "63%"、"1,200"、"3.2×" */
+  value: string;
+  /** 数字下面的一行说明 */
+  label: string;
+  /** 补充一行 */
+  note?: string;
+  /** 可选对比，如 "+12.4%" */
+  delta?: string;
+};
+
+/** 引用卡 */
+export type QuoteContent = {
+  kind: "quote";
+  /** 引文正文 */
+  text: string;
+  /** 出处 / 说话人 */
+  attribution?: string;
+  /** 顶部小字 */
+  kicker?: string;
+};
+
+/** 纯氛围：没有信息，只给画面呼吸 */
+export type AtmosphereContent = {
+  kind: "atmosphere";
+  /** 氛围类型 */
+  mood: "starfield" | "gradient" | "grid" | "noise";
+  /** 可选中置大字（参考片里多数氛围镜头没有字） */
+  text?: string;
+  /** 主色，缺省跟主题走 */
+  accent?: string;
+};
+
 export type LayoutContent =
   | ChartContent
   | DocContent
   | CodeContent
   | MapContent
   | TimelineContent
-  | CardsContent;
+  | CardsContent
+  | TitleContent
+  | StatContent
+  | QuoteContent
+  | AtmosphereContent;
 
 // ---------------------------------------------------------------------------
 // 版式分发表
 // ---------------------------------------------------------------------------
 
-/** M1 = doc | chart；M2 追加 code | map | timeline | cards */
-export type LayoutName = "doc" | "chart" | "code" | "map" | "timeline" | "cards";
+/** M1 = doc | chart；M2 追加 code | map | timeline | cards；M5 追加四个「全屏」版式 */
+export type LayoutName =
+  | "doc"
+  | "chart"
+  | "code"
+  | "map"
+  | "timeline"
+  | "cards"
+  | "title"
+  | "stat"
+  | "quote"
+  | "atmosphere";
 
 /** 同版式的第 1/2/3 种**排布**（不是配色） */
 export type Variant = 0 | 1 | 2;
+
+/**
+ * 版面渲染的画布尺寸。
+ *
+ * 老版式（doc/chart/code/map/timeline/cards）是按 1600×1200 硬写的，
+ * 收不到这个参数也能画（默认就是 1600×1200）。
+ * **新版式（title/stat/quote/atmosphere）必须用它**，
+ * 因为同一条版式要同时能画在 1600×1200（平板屏幕里）和 1920×1080（整帧）上。
+ */
+export type LayoutSize = { w: number; h: number };
 
 /**
  * 版面主体统一签名。
  *
  * 具体版式会在函数体内把 content 收窄成自己的类型，
  * 这样分发表可以是同构的 `LayoutDraw[][]`，而每个版式内部仍然是强类型的。
+ *
+ * `size` 是**可选尾参**：加法扩展，老版式不用改签名也能继续工作。
  */
 export type LayoutDraw = (
   g: CanvasRenderingContext2D,
@@ -211,6 +294,7 @@ export type LayoutDraw = (
   content: LayoutContent,
   theme: Theme,
   variant: Variant,
+  size?: LayoutSize,
 ) => void;
 
 // ---------------------------------------------------------------------------

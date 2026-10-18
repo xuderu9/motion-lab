@@ -96,7 +96,8 @@ export function segment(lines: SrtLine[], opt: PlannerOptions): Segment[] {
       text,
       features,
       // scores 由 score.ts 填；这里先给空壳，保持类型完整
-      scores: { doc: 0, chart: 0, code: 0, map: 0, timeline: 0, cards: 0 },
+      scores: { doc: 0, chart: 0, code: 0, map: 0, timeline: 0, cards: 0,
+                 title: 0, stat: 0, quote: 0, atmosphere: 0 },
     });
     s = cut + 1;
   }

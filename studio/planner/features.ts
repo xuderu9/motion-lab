@@ -152,6 +152,12 @@ export function supportsLayout(layout: string, text: string): boolean {
       return /`[^`]+`|\b[A-Z][A-Z0-9]{1,5}\b|\b[a-z]+_[a-z]+\b/.test(text);
     case "cards":
       return /第[一二三四五六七八九十]+|首先|其次|一是|二是|另外/.test(text) || (text.match(/[。！？]/g) || []).length >= 2;
+    case "title":
+    case "stat":
+    case "quote":
+    case "atmosphere":
+      // 全屏版式由「角色」决定，不由内容决定：任何一段文字都能做成标题卡/大数字卡
+      return false;
     case "doc":
       return true;
     default:
