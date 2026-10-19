@@ -581,6 +581,9 @@ codex 推算"屏幕做到 200 → 整帧约 101，落在 105±12 下边缘，需
 
 ## 0.100 编排谱 page/panel 实测（codex，2026-10-19）
 
+> ⚠️ **本节 hold3 是旧口径**（与上一帧比较）。dsh 的 `2d2ba78` 已把口径改成
+> 「与上次变化时的值比较」，本节数字**作废**；现行数字见 §0.101。
+
 **改动**：`layouts/page.ts`（v0/v1/v2 全部重写）、`layouts/panel.ts`（v1/v2）。
 `panel v0` 保持 dsh 的实现；`lifecycle.ts` / `motion.ts` / `post.ts` / `space.ts` /
 `film/**` / `mix.ts` / `scenes/**` 一行没动。
