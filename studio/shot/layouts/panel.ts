@@ -19,6 +19,7 @@ import { cardBg, palette, imgFor, imgSalt, type Palette } from "./blocks";
 import { drawImageCover } from "../assets";
 import { wrapLines } from "../chrome";
 import { stagger } from "../motion";
+import { slotCycle, slotTransform } from "../lifecycle";
 
 const C = {
   paper: "#f5f0eb",
@@ -94,9 +95,18 @@ function contentCard(
   theme: Theme,
   rise: number,
   imgIdx = 0,
+  fx?: { dy?: number; alpha?: number; scale?: number },
 ) {
   g.save();
-  g.translate(0, rise);
+  g.translate(0, rise + (fx?.dy ?? 0));
+  if (fx?.alpha !== undefined) g.globalAlpha *= fx.alpha;
+  if (fx?.scale !== undefined && fx.scale !== 1) {
+    const cx0 = x + w / 2;
+    const cy0 = y + h / 2;
+    g.translate(cx0, cy0);
+    g.scale(fx.scale, fx.scale);
+    g.translate(-cx0, -cy0);
+  }
   const p = panelPalette(theme);
   cardBg(g, x, y, w, h, p, hot, 0.075);
 
@@ -207,23 +217,34 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   for (let i = 0; i < n; i++) {
     const r = Math.floor(i / cols);
     const col = i % cols;
-    const it = items[i] ?? { title: "", body: "", tag: "" };
+    // 入场只在前 1.4 秒；之后交给**轮换**（slotCycle）：卡片每 2.4 秒换内容，
+    // 换的时候旧的退出、新的进场。卡片不会「摆上去就死在那儿」。
     const appear = stagger(t, i, { each: 0.22, dur: 0.58, from: 0, ease: "snap" });
-    const rise = (1 - appear) * h * 0.026;
-    contentCard(
-      g,
-      mx + col * (gw + gap),
-      areaTop + r * (gh + gapY),
-      gw,
-      gh,
-      it.title || `项目 ${i + 1}`,
-      it.value ? `${it.value} · ${it.body ?? ""}` : it.body ?? "",
-      it.tag ?? "",
-      i === 0,
-      theme,
-      rise,
-      pSalt + i,
-    );
+    const entrance = (1 - appear) * h * 0.026;
+    const draws =
+      t < 1.4
+        ? [{ item: items[i], exit: null as number | null, enter: null as number | null }]
+        : slotCycle(items, t - 1.4, i, n, 2.4, 0.7);
+
+    for (const d of draws) {
+      const it = d.item ?? { title: "", body: "", tag: "" };
+      const tf = slotTransform(d, gh, { rise: 0.22 });
+      contentCard(
+        g,
+        mx + col * (gw + gap),
+        areaTop + r * (gh + gapY),
+        gw,
+        gh,
+        it.title || `项目 ${i + 1}`,
+        it.value ? `${it.value} · ${it.body ?? ""}` : it.body ?? "",
+        it.tag ?? "",
+        it === items[0],
+        theme,
+        entrance,
+        pSalt + Math.max(0, items.indexOf(it)),
+        { dy: tf.dy, alpha: tf.alpha, scale: tf.scale },
+      );
+    }
   }
 
   // 底部黑色结论条
