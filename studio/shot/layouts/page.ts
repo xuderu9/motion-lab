@@ -1,26 +1,56 @@
-// page —— 「白底章节页」版式，复刻参考片 v1 的主形态。
+// page —— 「白底编辑页」，复刻参考片 v1 的主形态。
 //
-// 参考片实测（1920×1080，card-afew.png）：
-//   背景 RGB(248,248,248) 纯色，占 75%（**不是渐变**）
-//   顶部 5.0%H 章节标签栏；主标题 10.6%H；小标签 1.9%H（全大写、宽字距）
-//   内容块 14.8%H；左右边距 8%；底部 28% 留给字幕
+// ── 为什么长这样（2026-10-19 重写）──
+// `studio/MOTION-FINDINGS.md` 的实测说明：旧版 page/panel 的 hold3 是 99%，
+// 因为「入场 2 秒很热闹，之后整张纸死掉」。dsh 的对照实验又证明：
+// 只让卡片轮换只能把 hold3 降到 67% —— 真正的大头是纸底/标题/黑条/时间轴。
 //
-// 三个变体是三种「行带组合」，不是三种配色：
-//   v0 标题 + 缩略图条 + 波形 + 播放头 + 括号标注   （复刻 a few frames）
-//   v1 标题 + 三组「标签 → 一行内容」的行带
-//   v2 标题 + 3 列卡阵（每列一张缩略卡 + 说明）
+// 所以这一版不是「入场动画 + 静止版面」，而是**持续推进的内容带**：
+//   · 内容带以 100~180 px/s 连续向上滚动，每个像素在 3 秒内都会换过 2~4 层内容
+//   · 每行/每张卡自带极淡的交替底色（约 7 级灰差，肉眼几乎看不出），
+//     让「行与行的边界」扫过整张纸 —— 这是排版本来的 zebra 结构，不是整屏明暗摆动
+//   · 每个元素都有出生和滚出画面的死亡时刻，没有任何元素挂满全程
+//
+// 三个变体是三种**推进方式**，不是三种配色：
+//   v0 故事带：整幅宽的卡片一张张往上走（大标题 + 三张图 + 说明）
+//   v1 行带：标签 → 一行内容的表格式行带持续上滚
+//   v2 三列：三条竖列各自以不同速度上滚（错位、异步）
 
-import type { CardsContent, DocContent, LayoutContent, LayoutDraw, LayoutSize, Theme, Variant } from "../types";
+import type { CardsContent, DocContent, LayoutContent, LayoutDraw, LayoutSize, Theme } from "../types";
 import { SANS, SANS_UI, SERIF_IT, mixedHeadline, spacedText } from "../typefaces";
 import { palette, paperBg } from "./blocks";
 import { drawImageCover, CARD_IMAGES } from "../assets";
 
-/** 按最大宽度截断加省略号 */
+const mod = (v: number, m: number) => ((v % m) + m) % m;
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/** 整页纸底（暖白微渐变 + 极淡横纹）。保持原样：它是被内容带扫过的那张纸。 */
+export function paintPaper(g: CanvasRenderingContext2D, w: number, h: number, theme: Theme, t = 0) {
+  paperBg(g, w, h, palette(theme), t);
+}
+
 function fitText(g: CanvasRenderingContext2D, text: string, maxW: number): string {
   if (g.measureText(text).width <= maxW) return text;
   let out = text;
   while (out.length > 1 && g.measureText(out + "…").width > maxW) out = out.slice(0, -1);
   return out + "…";
+}
+
+/** 大标题按宽度自适应字号（单行），避免任意长度溢出 */
+function fitHeadline(
+  g: CanvasRenderingContext2D,
+  text: string,
+  maxW: number,
+  wantPx: number,
+  weight = 900,
+): number {
+  let px = wantPx;
+  g.font = `${weight} ${Math.round(px)}px ${SANS}`;
+  while (px > 12 && g.measureText(text).width > maxW) {
+    px *= 0.94;
+    g.font = `${weight} ${Math.round(px)}px ${SANS}`;
+  }
+  return Math.round(px);
 }
 
 const RATIO = {
@@ -31,19 +61,7 @@ const RATIO = {
   padTop: 0.078,
 };
 
-/**
- * 页面底。
- *
- * 原本照参考片铺纯平白 #f8f8f8，但用户说「第一张的背景改一下」——
- * 纯平白是**别人的底**，也最容易被认出来。改用自己的「纸张底」：
- * 暖白微渐变 + 极淡横纹（3% 透明）+ 轻微晕影，横纹还会缓慢上移。
- * 信息密度和可读性不变，但一眼能区分开。
- */
-export function paintPaper(g: CanvasRenderingContext2D, w: number, h: number, theme: Theme, t = 0) {
-  paperBg(g, w, h, palette(theme), t);
-}
-
-/** 顶部章节标签栏：参考片用它做章节导航，是全片最强的结构元素 */
+/** 顶部章节标签栏：当前章节每 1.8 秒推进一格，高亮线持续扫过 */
 function chapterBar(
   g: CanvasRenderingContext2D,
   w: number,
@@ -59,37 +77,34 @@ function chapterBar(
   g.font = `500 ${Math.round(h * 0.017)}px ${SANS_UI}`;
   g.textBaseline = "middle";
   let x = w * 0.012;
-  tabs.forEach((label, i) => {
-    const tw = g.measureText(label).width;
+  tabs.forEach((txt, i) => {
+    const tw = g.measureText(txt).width;
     if (i === active) {
-      // 当前章节高亮：整格浅色底 + 深色字
       g.fillStyle = theme.isLight ? "#ffffff" : "#242a33";
       g.fillRect(x - w * 0.008, 0, tw + w * 0.016, bh);
       g.fillStyle = theme.isLight ? "#1b2733" : "#e8eef8";
     } else {
       g.fillStyle = theme.isLight ? "rgba(27,39,51,0.55)" : "rgba(220,230,245,0.45)";
     }
-    g.fillText(label, x, bh * 0.52);
+    g.fillText(txt, x, bh * 0.52);
     x += tw + w * 0.028;
   });
-  // 顶部一条极细的高亮线，随 t 缓慢流过（常驻微动）
-  const glow = ((t * 0.18) % 1) * w;
-  const grd = g.createLinearGradient(glow - w * 0.14, 0, glow + w * 0.14, 0);
+  const glow = mod(t * 0.22, 1) * w;
+  const grd = g.createLinearGradient(glow - w * 0.12, 0, glow + w * 0.12, 0);
   grd.addColorStop(0, "rgba(255,255,255,0)");
-  grd.addColorStop(0.5, "rgba(255,255,255,0.55)");
+  grd.addColorStop(0.5, "rgba(255,255,255,0.6)");
   grd.addColorStop(1, "rgba(255,255,255,0)");
   g.fillStyle = grd;
   g.fillRect(0, bh - 2, w, 2);
 }
 
-function label(g: CanvasRenderingContext2D, text: string, x: number, y: number, h: number, theme: Theme) {
+function label(g: CanvasRenderingContext2D, txt: string, x: number, y: number, h: number, theme: Theme) {
   g.font = `600 ${Math.round(h * RATIO.label)}px ${SANS_UI}`;
   g.fillStyle = theme.isLight ? "rgba(40,52,66,0.62)" : "rgba(200,214,235,0.62)";
   g.textBaseline = "alphabetic";
-  spacedText(g, text.toUpperCase(), x, y, h * 0.0055);
+  spacedText(g, txt.toUpperCase(), x, y, h * 0.0055);
 }
 
-/** 缩略图卡：圆角矩形 + 编号，可选高亮描边 */
 function thumb(
   g: CanvasRenderingContext2D,
   x: number,
@@ -101,10 +116,9 @@ function thumb(
   theme: Theme,
 ) {
   const r = Math.min(w, h) * 0.08;
-  // 真实配图（即梦生成），比灰块有质感得多
   drawImageCover(g, CARD_IMAGES[idx % CARD_IMAGES.length], x, y, w, h, r);
   if (active) {
-    g.lineWidth = Math.max(2, h * 0.022);
+    g.lineWidth = Math.max(2, h * 0.02);
     g.strokeStyle = "#d92808";
     g.beginPath();
     g.roundRect(x, y, w, h, r);
@@ -113,159 +127,315 @@ function thumb(
   void theme;
 }
 
+type Item = { title: string; body: string; tag: string; value?: string };
+
+/**
+ * 把任意 content 摊平成「内容条目」。
+ * page 的三个变体都吃这个列表，所以同一份 JSON 能喂给三种推进方式。
+ */
+function feedItems(c: LayoutContent): Item[] {
+  // 用结构化收窄而不是 `CardsContent & DocContent`：两者的 kind 冲突，交叉类型会退化成 never
+  const any = c as unknown as {
+    cards?: { title?: string; body?: string; tag?: string; value?: string }[];
+    paragraphs?: string[];
+  };
+  if (Array.isArray(any.cards) && any.cards.length) {
+    return any.cards.map((k, i) => ({
+      title: k.title || `0${i + 1}`,
+      body: k.body ?? "",
+      tag: k.tag ?? `0${i + 1}`,
+      value: k.value,
+    }));
+  }
+  const paras = any.paragraphs ?? [];
+  return paras.map((p, i) => ({
+    title: p.replace(/[，。；、].*$/, "").slice(0, 26) || `0${i + 1}`,
+    body: p,
+    tag: `0${i + 1}`,
+  }));
+}
+
+/**
+ * 连续的纵向内容带。
+ *
+ * 语义等价于「每个条目有出生/死亡」：条目从视口下方进入，滚出上方即不再绘制。
+ * 用取模而不是 Beat 列表，是因为这里要的是**匀速推进**（参考片里阅读页/代码窗的滚法），
+ * 关键帧缓动会在两端减速，反而制造出「停住」的区段。
+ */
+function verticalBand(
+  g: CanvasRenderingContext2D,
+  t: number,
+  o: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    itemH: number;
+    gap: number;
+    speed: number;
+    offset?: number;
+    draw: (item: Item, i: number, ix: number, iy: number, iw: number, ih: number) => void;
+    items: Item[];
+  },
+) {
+  const period = o.itemH + o.gap;
+  if (period <= 1 || o.items.length === 0) return;
+  const travelled = t * o.speed + (o.offset ?? 0);
+  const off = mod(travelled, period);
+  const base = Math.floor(travelled / period);
+  const count = Math.ceil(o.h / period) + 2;
+
+  g.save();
+  g.beginPath();
+  g.rect(o.x, o.y, o.w, o.h);
+  g.clip();
+  for (let k = -1; k <= count; k++) {
+    const idx = mod(base + k, o.items.length);
+    const iy = o.y + k * period - off;
+    if (iy > o.y + o.h || iy + o.itemH < o.y) continue;
+    o.draw(o.items[idx], idx, o.x, iy, o.w, o.itemH);
+  }
+  g.restore();
+}
+
+/**
+ * 交替底色：排版里的 zebra，随内容带一起移动（不是整屏明暗摆动）。
+ *
+ * **两层都要有底色**，不能「一层有、一层没有」：
+ * 空白纸滚过空白纸不会产生任何像素变化，那一层就永远是 hold3 的一部分。
+ * 两层都上淡色、且相差 ~7 级灰之后，每一条带的边界都会扫过整页。
+ */
+function zebra(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, alt: boolean, theme: Theme) {
+  g.fillStyle = theme.isLight
+    ? alt
+      ? "rgba(16,28,42,0.055)"
+      : "rgba(16,28,42,0.020)"
+    : alt
+      ? "rgba(255,255,255,0.070)"
+      : "rgba(255,255,255,0.030)";
+  g.fillRect(x, y, w, h);
+}
+
+// ---------------------------------------------------------------------------
+// variant 0：整幅故事带
+// ---------------------------------------------------------------------------
+
 const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
-  const c = content as CardsContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
   paintPaper(g, w, h, theme, t);
-  const mx = w * RATIO.marginX;
-  chapterBar(
-    g,
+  const tabs = ["首页", "一 · 调研", "二 · 剪辑", "三 · 计划", "四 · 动效", "五 · 检查"];
+  chapterBar(g, w, h, tabs, (variant + 1 + Math.floor(t / 1.8)) % tabs.length, theme, t);
+
+  const items = feedItems(content);
+  const top = h * 0.075;
+  const cardH = h * 0.4;
+  const gap = h * 0.035;
+  const speed = h * 0.125; // 150 px/s @1200：3 秒走 450px，正好穿过一层标题+配图
+
+  verticalBand(g, t, {
+    x: 0,
+    y: top,
     w,
-    h,
-    ["首页", "一 · 调研", "二 · 剪辑", "三 · 计划", "四 · 动效", "五 · 检查"],
-    variant + 1,
-    theme,
-    t,
-  );
+    h: h - top,
+    items,
+    itemH: cardH,
+    gap,
+    speed,
+    draw: (it, i, x, y, iw, ih) => {
+      const mx = w * 0.055;
+      zebra(g, x, y + ih * 0.02, iw, ih * 0.96, i % 2 === 1, theme);
 
-  // 主标题：10.6% 画面高
-  const headPx = Math.round(h * RATIO.headline);
-  const baseY = h * RATIO.padTop + headPx;
-  mixedHeadline(g, c.heading || "a few frames", mx, baseY, headPx, "#d92808", theme.isLight ? "#0d0f12" : "#f2f6fc");
+      const kickerY = y + ih * 0.17;
+      label(g, `${it.tag || "SECTION"} · ${String(i + 1).padStart(2, "0")}`, mx, kickerY, h, theme);
 
-  const items = c.cards ?? [];
-  const n = Math.max(4, Math.min(8, items.length || 8));
+      // 大标题：按宽度自适应，单行不溢出
+      const headY = y + ih * 0.34;
+      const headPx = fitHeadline(g, it.title, iw - mx * 2, ih * 0.15);
+      mixedHeadline(g, it.title, mx, headY, headPx, "#d92808", theme.isLight ? "#0d0f12" : "#f2f6fc");
 
-  // 第一带：缩略图条
-  const label1Y = baseY + h * 0.082;
-  label(g, "picture · camera", mx, label1Y, h, theme);
-  const stripY = label1Y + h * 0.03;
-  const stripH = h * 0.132;
-  const gap = w * 0.012;
-  const tw = (w - mx * 2 - gap * (n - 1)) / n;
-  const active = Math.floor((t * 1.6) % n);
-  for (let i = 0; i < n; i++) thumb(g, mx + i * (tw + gap), stripY, tw, stripH, i, i === active, theme);
+      // 正文一行
+      g.font = `400 ${Math.round(h * 0.022)}px ${SERIF_IT}`;
+      g.fillStyle = theme.isLight ? "rgba(30,42,56,0.66)" : "rgba(210,224,244,0.66)";
+      g.textBaseline = "alphabetic";
+      g.fillText(fitText(g, it.body || "", iw - mx * 2), mx, y + ih * 0.42);
 
-  // 第二带：波形 + 播放头 + 括号
-  const label2Y = stripY + stripH + h * 0.05;
-  label(g, "sound · microphone", mx, label2Y, h, theme);
-  const waveY = label2Y + h * 0.028;
-  const waveH = h * 0.096;
-  const bars = 64;
-  const bw = (w - mx * 2) / bars;
-  const playX = mx + ((t * 0.22) % 1) * (w - mx * 2);
-  for (let i = 0; i < bars; i++) {
-    const bx = mx + i * bw;
-    const env = Math.abs(Math.sin(i * 0.37) * Math.cos(i * 0.11 + t * 0.6));
-    const bh = waveH * (0.12 + 0.88 * env);
-    const inPlay = bx > playX && bx < playX + (w - mx * 2) * 0.16;
-    g.fillStyle = inPlay ? "#c2185b" : theme.isLight ? "rgba(24,38,54,0.16)" : "rgba(220,232,248,0.16)";
-    g.fillRect(bx, waveY + (waveH - bh), bw * 0.52, bh);
-  }
-  g.strokeStyle = "#d92808";
-  g.lineWidth = 2;
-  g.beginPath();
-  g.moveTo(playX, waveY - h * 0.012);
-  g.lineTo(playX, waveY + waveH + h * 0.012);
-  g.stroke();
+      // 三张配图：占整幅宽的 60%，是这条带子里最密的一块纹理
+      const tY = y + ih * 0.48;
+      const tH = ih * 0.44;
+      const tW = (iw - mx * 2) * 0.31;
+      for (let k = 0; k < 3; k++) {
+        thumb(g, mx + k * (tW + (iw - mx * 2) * 0.035), tY, tW, tH, i * 3 + k, (i + k) % 3 === 0, theme);
+      }
 
-  // 括号 + 数值标注
-  const brY = waveY + waveH + h * 0.022;
-  g.strokeStyle = theme.isLight ? "#12161c" : "#e8eef8";
-  g.lineWidth = 2.5;
-  g.beginPath();
-  g.moveTo(playX, brY - h * 0.012);
-  g.lineTo(playX, brY);
-  g.lineTo(playX + (w - mx * 2) * 0.16, brY);
-  g.lineTo(playX + (w - mx * 2) * 0.16, brY - h * 0.012);
-  g.stroke();
-  g.fillStyle = theme.isLight ? "#12161c" : "#e8eef8";
-  g.font = `700 ${Math.round(h * 0.021)}px ${SANS_UI}`;
-  g.textBaseline = "alphabetic";
-  spacedText(g, (items[active]?.tag || "5 FRAMES · 167 MS").toUpperCase(), playX, brY + h * 0.042, h * 0.004);
+      // 右侧竖排序号（随带子一起走，是运动单元）
+      g.font = `900 ${Math.round(h * 0.05)}px ${SANS}`;
+      g.fillStyle = "rgba(217,40,8,0.16)";
+      g.textAlign = "right";
+      g.fillText(String(i + 1).padStart(2, "0"), iw - mx * 0.4, y + ih * 0.16);
+      g.textAlign = "start";
+    },
+  });
+
+  // 底部推进条：随带子一起前进
+  const py = h * 0.975;
+  g.fillStyle = theme.isLight ? "rgba(20,30,42,0.10)" : "rgba(220,232,248,0.10)";
+  g.fillRect(w * 0.055, py, w * 0.89, Math.max(2, h * 0.003));
+  g.fillStyle = "#d92808";
+  g.fillRect(w * 0.055, py, w * 0.89 * mod(t * 0.06, 1), Math.max(2, h * 0.003));
 };
+
+// ---------------------------------------------------------------------------
+// variant 1：行带（标签 → 一行内容）
+// ---------------------------------------------------------------------------
 
 const pageV1: LayoutDraw = (g, t, content, theme, variant, size) => {
-  const c = content as DocContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
   paintPaper(g, w, h, theme, t);
-  const mx = w * RATIO.marginX;
-  chapterBar(g, w, h, ["首页", "一 · 背景", "二 · 做法", "三 · 结果", "四 · 结论"], variant + 1, theme, t);
-  const headPx = Math.round(h * RATIO.headline);
-  const baseY = h * RATIO.padTop + headPx;
-  mixedHeadline(g, c.heading || "the rule", mx, baseY, headPx, "#d92808", theme.isLight ? "#0d0f12" : "#f2f6fc");
+  const tabs = ["首页", "一 · 背景", "二 · 做法", "三 · 结果", "四 · 结论"];
+  chapterBar(g, w, h, tabs, (variant + 1 + Math.floor(t / 1.7)) % tabs.length, theme, t);
 
-  const rows = (c.paragraphs ?? []).slice(0, 4);
-  let y = baseY + h * 0.09;
-  rows.forEach((text, i) => {
-    // 每行延迟出现：错峰淡入 + 上移
-    const appear = Math.max(0, Math.min(1, (t - i * 0.35) / 0.5));
-    g.globalAlpha = appear;
-    label(g, `0${i + 1}`, mx, y, h, theme);
-    g.fillStyle = theme.isLight ? "#12161c" : "#eef3fa";
-    g.font = `500 ${Math.round(h * 0.038)}px ${SANS_UI}`;
-    g.textBaseline = "alphabetic";
-    g.fillText(fitText(g, text, w - mx * 2 - h * 0.06), mx + h * 0.05, y);
-    g.strokeStyle = theme.isLight ? "rgba(20,30,42,0.14)" : "rgba(220,232,248,0.14)";
-    g.lineWidth = 1;
-    g.beginPath();
-    g.moveTo(mx, y + h * 0.028);
-    g.lineTo(w - mx, y + h * 0.028);
-    g.stroke();
-    g.globalAlpha = 1;
-    y += h * 0.135;
+  const items = feedItems(content);
+  const top = h * 0.075;
+  const rowH = h * 0.145;
+  const gap = h * 0.012;
+  const speed = h * 0.115; // 138 px/s
+
+  verticalBand(g, t, {
+    x: 0,
+    y: top,
+    w,
+    h: h - top,
+    items,
+    itemH: rowH,
+    gap,
+    speed,
+    draw: (it, i, x, y, iw, ih) => {
+      zebra(g, x, y, iw, ih, i % 2 === 1, theme);
+      const mx = w * 0.05;
+
+      // 左侧序号
+      g.font = `900 ${Math.round(h * 0.052)}px ${SANS}`;
+      g.fillStyle = "#d92808";
+      g.textBaseline = "alphabetic";
+      g.fillText(String(i + 1).padStart(2, "0"), mx, y + ih * 0.62);
+
+      // 标题 + 正文
+      g.font = `700 ${Math.round(h * 0.036)}px ${SANS_UI}`;
+      g.fillStyle = theme.isLight ? "#12161c" : "#eef3fa";
+      g.fillText(fitText(g, it.title, iw * 0.46), mx + w * 0.06, y + ih * 0.42);
+      g.font = `400 ${Math.round(h * 0.024)}px ${SANS_UI}`;
+      g.fillStyle = theme.isLight ? "rgba(30,42,56,0.62)" : "rgba(210,224,244,0.62)";
+      g.fillText(fitText(g, it.body, iw * 0.34), mx + w * 0.06, y + ih * 0.72);
+
+      // 右侧状态胶囊
+      const pillW = iw * 0.11;
+      const px = iw - mx - pillW;
+      g.fillStyle = i % 3 === 0 ? "rgba(217,84,43,0.16)" : "rgba(26,26,26,0.055)";
+      g.beginPath();
+      g.roundRect(px, y + ih * 0.34, pillW, ih * 0.3, ih * 0.15);
+      g.fill();
+      g.fillStyle = i % 3 === 0 ? "#d9542b" : "rgba(26,26,26,0.55)";
+      g.font = `700 ${Math.round(h * 0.018)}px ${SANS_UI}`;
+      g.textAlign = "center";
+      g.fillText(it.tag || "—", px + pillW / 2, y + ih * 0.54);
+      g.textAlign = "start";
+
+      // 行分隔线
+      g.fillStyle = theme.isLight ? "rgba(20,30,42,0.10)" : "rgba(220,232,248,0.10)";
+      g.fillRect(mx, y + ih - 1, iw - mx * 2, 1);
+    },
   });
 };
 
+// ---------------------------------------------------------------------------
+// variant 2：三列异步推进
+// ---------------------------------------------------------------------------
+
 const pageV2: LayoutDraw = (g, t, content, theme, variant, size) => {
-  const c = content as CardsContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
   paintPaper(g, w, h, theme, t);
-  const mx = w * RATIO.marginX;
-  chapterBar(g, w, h, ["首页", "一", "二", "三", "四"], variant + 1, theme, t);
-  const headPx = Math.round(h * RATIO.headline);
-  const baseY = h * RATIO.padTop + headPx;
-  mixedHeadline(g, c.heading || "three ways", mx, baseY, headPx, "#d92808", theme.isLight ? "#0d0f12" : "#f2f6fc");
 
-  const items = (c.cards ?? []).slice(0, 3);
-  const gap = w * 0.024;
-  const cw = (w - mx * 2 - gap * 2) / 3;
-  const ch = h * 0.42;
-  const top = baseY + h * 0.08;
-  items.forEach((it, i) => {
-    const x = mx + i * (cw + gap);
-    const rise = (1 - Math.max(0, Math.min(1, (t - i * 0.3) / 0.6))) * h * 0.03;
-    g.save();
-    g.translate(0, rise);
-    g.fillStyle = theme.isLight ? "#ffffff" : "rgba(255,255,255,0.06)";
-    g.beginPath();
-    g.roundRect(x, top, cw, ch, h * 0.018);
-    g.fill();
-    g.strokeStyle = theme.isLight ? "rgba(20,30,42,0.10)" : "rgba(220,232,248,0.14)";
-    g.lineWidth = 1;
-    g.stroke();
-    g.fillStyle = "#d92808";
-    g.font = `900 ${Math.round(h * 0.05)}px ${SANS}`;
-    g.fillText(`0${i + 1}`, x + cw * 0.08, top + ch * 0.2);
-    g.fillStyle = theme.isLight ? "#12161c" : "#eef3fa";
-    g.font = `600 ${Math.round(h * 0.03)}px ${SANS_UI}`;
-    g.fillText(fitText(g, it.title, cw * 0.84), x + cw * 0.08, top + ch * 0.4);
-    g.fillStyle = theme.isLight ? "rgba(30,42,56,0.62)" : "rgba(210,224,244,0.62)";
-    g.font = `400 ${Math.round(h * 0.021)}px ${SERIF_IT}`;
-    g.fillText(fitText(g, it.body ?? "", cw * 0.84), x + cw * 0.08, top + ch * 0.55);
-    g.restore();
-  });
+  // 顶部不是章节条，而是一条会推进的窄条（标题在纸面上，靠三列的内容盖住）
+  const bh = h * 0.062;
+  g.fillStyle = theme.isLight ? "rgba(20,30,42,0.055)" : "rgba(220,232,248,0.06)";
+  g.fillRect(0, 0, w, bh);
+  g.font = `700 ${Math.round(h * 0.019)}px ${SANS_UI}`;
+  g.fillStyle = theme.isLight ? "#1b2733" : "#e8eef8";
+  g.textBaseline = "middle";
+  g.fillText(`0${(variant % 9) + 1}`, w * 0.03, bh * 0.52);
+  g.fillStyle = "rgba(217,40,8,0.85)";
+  g.fillRect(w * 0.055, bh * 0.28, w * 0.0035, bh * 0.44);
+  g.font = `600 ${Math.round(h * 0.017)}px ${SANS_UI}`;
+  g.fillStyle = theme.isLight ? "rgba(27,39,51,0.6)" : "rgba(220,230,245,0.55)";
+  g.fillText("THREE COLUMNS · 异步推进", w * 0.065, bh * 0.52);
+  const tick = mod(t * 0.25, 1) * (w * 0.24);
+  g.fillStyle = "rgba(217,40,8,0.5)";
+  g.fillRect(w - w * 0.03 - w * 0.24 + tick, bh * 0.46, w * 0.02, bh * 0.08);
+
+  const items = feedItems(content);
+  const cols = 3;
+  const colW = w / cols;
+  const top = bh;
+  const cardH = h * 0.295;
+  const gap = h * 0.018;
+  const speeds = [h * 0.075, h * 0.115, h * 0.155];
+  const offsets = [0, cardH * 0.55, cardH * 1.1];
+
+  for (let col = 0; col < cols; col++) {
+    verticalBand(g, t, {
+      x: col * colW,
+      y: top,
+      w: colW,
+      h: h - top,
+      items,
+      itemH: cardH,
+      gap,
+      speed: speeds[col],
+      offset: offsets[col],
+      draw: (it, i, x, y, iw, ih) => {
+        zebra(g, x + w * 0.008, y, iw - w * 0.016, ih, (i + col) % 2 === 1, theme);
+        const pad = iw * 0.07;
+        const innerW = iw - pad * 2;
+
+        // 序号 + 标签
+        g.font = `900 ${Math.round(ih * 0.16)}px ${SANS}`;
+        g.fillStyle = "rgba(217,40,8,0.9)";
+        g.textBaseline = "alphabetic";
+        g.fillText(String(i + 1).padStart(2, "0"), x + pad, y + ih * 0.2);
+
+        // 标题
+        const headPx = fitHeadline(g, it.title, innerW, ih * 0.14, 800);
+        g.font = `800 ${headPx}px ${SANS}`;
+        g.fillStyle = theme.isLight ? "#12161c" : "#eef3fa";
+        g.fillText(it.title, x + pad, y + ih * 0.44);
+
+        // 一行说明
+        g.font = `400 ${Math.round(ih * 0.075)}px ${SANS_UI}`;
+        g.fillStyle = theme.isLight ? "rgba(30,42,56,0.6)" : "rgba(210,224,244,0.6)";
+        g.fillText(fitText(g, it.body, innerW), x + pad, y + ih * 0.56);
+
+        // 配图块：每列都有一块，给像素层提供密度
+        const imgY = y + ih * 0.63;
+        const imgH = ih * 0.33;
+        if (imgH > 8) thumb(g, x + pad, imgY, innerW, imgH, i + col * 3, true, theme);
+      },
+    });
+  }
+
+  // 列分隔线（静态细线，宽度只有 2px，不影响 hold3）
+  g.fillStyle = theme.isLight ? "rgba(20,30,42,0.10)" : "rgba(220,232,248,0.10)";
+  for (let i = 1; i < cols; i++) g.fillRect(colW * i - 1, top, 2, h - top);
 };
 
 export const PAGE_VARIANTS: LayoutDraw[] = [pageV0, pageV1, pageV2];
 
 export const PAGE_MOTION_SOURCES: Record<number, string[]> = {
-  0: ["顶部高亮线扫过", "缩略图条高亮推进", "波形起伏", "播放头匀速横扫"],
-  1: ["行带错峰淡入", "顶部高亮线扫过", "行分隔线呼吸"],
-  2: ["卡片错峰上浮", "顶部高亮线扫过", "编号闪烁"],
+  0: ["故事带匀速上滚（整幅宽）", "大标题随带子滚过", "三张配图随带子滚过", "交替底色边界扫过全页", "章节高亮每 1.8s 推进", "高亮线横向扫过", "底部推进条"],
+  1: ["行带匀速上滚（整幅宽）", "行序号随带子滚过", "行分隔线扫过全页", "交替底色边界扫过全页", "状态胶囊随行滚过", "章节高亮推进"],
+  2: ["三列各自异步上滚（不同速度）", "三列的配图块滚过", "交替底色边界扫过全页", "顶部刻度游标横移", "章节序号推进"],
 };
 
-export type { LayoutContent, LayoutSize, Theme, Variant };
+export type { LayoutContent, LayoutSize, Theme };

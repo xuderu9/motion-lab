@@ -244,8 +244,15 @@ def main() -> int:
     ap.add_argument("video")
     ap.add_argument("--out", default="")
     ap.add_argument("--fps", type=float, default=None)
+    ap.add_argument("--scale", type=int, default=1, help="降采样倍数，用来滤掉颗粒噪声、只看结构")
     args = ap.parse_args()
 
+    # 降采样是**方法论**，不是偷懒：
+    # 逐帧胶片颗粒会让每个像素每帧都变，hold3 会被噪声压到 0 —— 那是骗指标，不是动起来了。
+    # --scale 4 把 480×270 降到 120×68，颗粒被平均掉，剩下的才是「结构有没有动」。
+    global W, H
+    if args.scale > 1:
+        W, H = W // args.scale, H // args.scale
     res, series = probe(args.video, args.fps)
     print(json.dumps(res, ensure_ascii=False, indent=2))
     if args.out:

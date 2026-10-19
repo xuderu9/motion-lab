@@ -290,14 +290,80 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.fillText(`${items.length || 6} 引擎`, cursor + h * 0.016, ty - h * 0.014);
 };
 
-/** v1：左侧栏 + 右侧表格行 */
+const mod = (v: number, m: number) => ((v % m) + m) % m;
+
+type PItem = { title: string; body: string; tag: string; value?: string };
+
+function pItems(c: CardsContent): PItem[] {
+  const cards = c.cards ?? [];
+  if (cards.length) {
+    return cards.map((k, i) => ({
+      title: k.title || `0${i + 1}`,
+      body: k.body ?? "",
+      tag: k.tag ?? `0${i + 1}`,
+      value: k.value,
+    }));
+  }
+  return (c.tags ?? []).map((tg, i) => ({ title: tg, body: "", tag: `0${i + 1}` }));
+}
+
+/**
+ * 连续的纵向滚动带。
+ * 条目从视口下方进入、滚出上方即不再绘制 —— 每个元素都有明确的死亡时刻。
+ * 匀速而不是缓动：缓动会在两端减速，反而制造出「停住」的区段。
+ */
+function vstack(
+  g: CanvasRenderingContext2D,
+  t: number,
+  o: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    items: PItem[];
+    itemH: number;
+    gap: number;
+    speed: number;
+    offset?: number;
+    draw: (it: PItem, i: number, x: number, y: number, w: number, h: number) => void;
+  },
+) {
+  const period = o.itemH + o.gap;
+  if (period <= 1 || o.items.length === 0) return;
+  const travelled = t * o.speed + (o.offset ?? 0);
+  const off = mod(travelled, period);
+  const base = Math.floor(travelled / period);
+  const count = Math.ceil(o.h / period) + 2;
+  g.save();
+  g.beginPath();
+  g.rect(o.x, o.y, o.w, o.h);
+  g.clip();
+  for (let k = -1; k <= count; k++) {
+    const idx = mod(base + k, o.items.length);
+    const iy = o.y + k * period - off;
+    if (iy > o.y + o.h || iy + o.itemH < o.y) continue;
+    o.draw(o.items[idx], idx, o.x, iy, o.w, o.itemH);
+  }
+  g.restore();
+}
+
+/**
+ * v1：左侧栏 + 右侧表格行。
+ *
+ * 旧版是「行错峰淡入，然后静止 8 秒」——hold3 99%。
+ * 现在表格是一张**持续向上滚的台账**：行从底部进、从顶部出，
+ * 每行带 zebra 底色（约 7 级灰差），所以整块纸面都会被行边界扫过。
+ * 侧栏的名录也同步上滚，左侧 20% 面积同样不是死的。
+ */
 const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
   const c = content as CardsContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
   paper(g, w, h, t);
   const sb = w * 0.2;
-  // 侧栏
+  const items = pItems(c);
+
+  // 侧栏底
   g.fillStyle = C.card;
   g.fillRect(0, 0, sb, h);
   g.strokeStyle = C.line;
@@ -305,22 +371,37 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.moveTo(sb, 0);
   g.lineTo(sb, h);
   g.stroke();
+
   g.fillStyle = C.ink;
   g.font = `800 ${Math.round(h * 0.026)}px ${SANS}`;
   g.textBaseline = "alphabetic";
   g.fillText("MOTION", h * 0.03, h * 0.07);
-  const nav = ["总览", "素材", "分镜", "渲染", "设置"];
-  g.font = `500 ${Math.round(h * 0.02)}px ${SANS_UI}`;
-  nav.forEach((n, i) => {
-    const y = h * 0.14 + i * h * 0.058;
-    if (i === variant) {
-      g.fillStyle = C.accentSoft;
-      g.beginPath();
-      g.roundRect(h * 0.02, y - h * 0.028, sb - h * 0.04, h * 0.046, h * 0.01);
-      g.fill();
-      g.fillStyle = C.accent;
-    } else g.fillStyle = C.meta;
-    g.fillText(n, h * 0.04, y);
+
+  // 侧栏名录：持续上滚（每项 5.6%H，速度 62px/s）
+  const navNames = ["总览", "素材", "分镜", "渲染", "设置", ...(c.tags ?? []), ...items.map((i) => i.title)];
+  vstack(g, t, {
+    x: 0,
+    y: h * 0.1,
+    w: sb,
+    h: h * 0.9,
+    items: navNames.map((n, i) => ({ title: n, body: "", tag: `${i}` })),
+    itemH: h * 0.056,
+    gap: 0,
+    speed: h * 0.052,
+    draw: (it, i, x, y, iw, ih) => {
+      const on = i % 5 === variant % 5;
+      if (on) {
+        g.fillStyle = C.accentSoft;
+        g.beginPath();
+        g.roundRect(h * 0.02, y + ih * 0.12, sb - h * 0.04, ih * 0.76, h * 0.01);
+        g.fill();
+      }
+      g.fillStyle = on ? C.accent : C.meta;
+      g.font = `500 ${Math.round(h * 0.02)}px ${SANS_UI}`;
+      g.textBaseline = "middle";
+      g.fillText(fitText(g, it.title, sb - h * 0.09), h * 0.04, y + ih * 0.52);
+      g.textBaseline = "alphabetic";
+    },
   });
 
   // 右表格
@@ -329,51 +410,68 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.fillStyle = C.ink;
   g.font = `800 ${Math.round(h * 0.045)}px ${SANS}`;
   g.fillText(c.heading || "任务列表", x0, h * 0.105);
-  const rows = (c.cards ?? []).slice(0, 6);
+  // 表头下的小计数器持续跳动（运动源）
+  g.fillStyle = C.accent;
+  g.font = `700 ${Math.round(h * 0.018)}px ${SANS_UI}`;
+  g.fillText(`${items.length} / ${Math.round(t * 12)}`, x0 + cw - h * 0.14, h * 0.105);
+
   const rowH = h * 0.1;
-  rows.forEach((it, i) => {
-    const y = h * 0.16 + i * rowH;
-    const appear = Math.max(0, Math.min(1, (t - i * 0.18) / 0.45));
-    g.globalAlpha = appear;
-    g.fillStyle = i % 2 ? "rgba(26,26,26,0.02)" : "transparent";
-    g.fillRect(x0, y, cw, rowH - h * 0.012);
-    g.fillStyle = C.ink;
-    g.font = `700 ${Math.round(h * 0.024)}px ${SANS_UI}`;
-    g.fillText(fitText(g, it.title, cw * 0.42), x0 + h * 0.02, y + rowH * 0.46);
-    g.fillStyle = C.meta;
-    g.font = `400 ${Math.round(h * 0.019)}px ${SANS_UI}`;
-    g.fillText(fitText(g, it.body ?? "", cw * 0.34), x0 + cw * 0.44, y + rowH * 0.46);
-    // 状态胶囊
-    const pillW = cw * 0.12;
-    const px = x0 + cw - pillW - h * 0.02;
-    g.fillStyle = i % 3 === 0 ? C.accentSoft : "rgba(26,26,26,0.05)";
-    g.beginPath();
-    g.roundRect(px, y + rowH * 0.26, pillW, rowH * 0.4, rowH * 0.2);
-    g.fill();
-    g.fillStyle = i % 3 === 0 ? C.accent : C.meta;
-    g.font = `600 ${Math.round(h * 0.016)}px ${SANS_UI}`;
-    g.textAlign = "center";
-    g.fillText(i % 3 === 0 ? "进行中" : "待办", px + pillW / 2, y + rowH * 0.52);
-    g.textAlign = "start";
-    g.globalAlpha = 1;
+  vstack(g, t, {
+    x: x0,
+    y: h * 0.13,
+    w: cw,
+    h: h - h * 0.15,
+    items,
+    itemH: rowH,
+    gap: h * 0.012,
+    speed: h * 0.13, // 156 px/s：3 秒走 468px ≈ 4 行
+    draw: (it, i, x, y, iw, ih) => {
+      g.fillStyle = i % 2 ? "rgba(26,26,26,0.035)" : "transparent";
+      g.fillRect(x, y, iw, ih);
+      g.fillStyle = C.ink;
+      g.font = `700 ${Math.round(h * 0.024)}px ${SANS_UI}`;
+      g.textBaseline = "alphabetic";
+      g.fillText(fitText(g, it.title, iw * 0.36), x + h * 0.02, y + ih * 0.46);
+      g.fillStyle = C.meta;
+      g.font = `400 ${Math.round(h * 0.019)}px ${SANS_UI}`;
+      g.fillText(fitText(g, it.body ?? "", iw * 0.3), x + iw * 0.42, y + ih * 0.46);
+      const pillW = iw * 0.12;
+      const px = x + iw - pillW - h * 0.02;
+      g.fillStyle = i % 3 === 0 ? C.accentSoft : "rgba(26,26,26,0.05)";
+      g.beginPath();
+      g.roundRect(px, y + ih * 0.26, pillW, ih * 0.4, ih * 0.2);
+      g.fill();
+      g.fillStyle = i % 3 === 0 ? C.accent : C.meta;
+      g.font = `600 ${Math.round(h * 0.016)}px ${SANS_UI}`;
+      g.textAlign = "center";
+      g.fillText(i % 3 === 0 ? "进行中" : "待办", px + pillW / 2, y + ih * 0.52);
+      g.textAlign = "start";
+      g.fillStyle = C.line;
+      g.fillRect(x, y + ih - 1, iw, 1);
+    },
   });
 };
 
-/** v2：单一大面板 + 内嵌小卡 */
+/**
+ * v2：单一大面板 + 内嵌小卡。
+ *
+ * 旧版是「面板滑入 → 内嵌卡淡入 → 静止」，hold3 99%。
+ * 现在面板几乎铺满整帧（96%×91%），内部是两条各自上滚的卡列：
+ * 卡片从底部进、顶部出，卡与卡之间带 zebra 底色，所以面板内部每一点都在被覆盖。
+ * 面板外的纸边只有 ~9% 面积，是这一版唯一接近静止的区域。
+ */
 const panelV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const c = content as CardsContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
   paper(g, w, h, t);
-  topBar(g, w, h, "MOTION LAB · 面板", "F 4210 / 8940");
-  const mx = w * 0.08;
-  const py = h * 0.11;
+
+  const mx = w * 0.015;
+  const py = h * 0.045;
   const pw = w - mx * 2;
-  const ph = h * 0.76;
-  // 大面板：从左侧滑入
-  const slide = (1 - Math.max(0, Math.min(1, t / 0.6))) * w * 0.25;
+  const ph = h * 0.91;
+
   g.save();
-  g.translate(-slide, 0);
   g.shadowColor = "rgba(26,26,26,0.18)";
   g.shadowBlur = 40;
   g.shadowOffsetY = 14;
@@ -386,36 +484,61 @@ const panelV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.lineWidth = 1;
   g.stroke();
 
+  // 面板头：标题 + 计数 + 推进条（计数与条都在动）
+  const hh = h * 0.105;
   g.fillStyle = C.ink;
-  g.font = `800 ${Math.round(h * 0.04)}px ${SANS}`;
+  g.font = `800 ${Math.round(h * 0.038)}px ${SANS}`;
   g.textBaseline = "alphabetic";
-  g.fillText("Render, look, fix", mx + h * 0.04, py + h * 0.075);
+  g.fillText(fitText(g, c.heading || "Render, look, fix", pw - h * 0.5), mx + h * 0.035, py + hh * 0.62);
+  g.fillStyle = C.meta;
+  g.font = `600 ${Math.round(h * 0.017)}px ${SANS_UI}`;
+  g.fillText(`${Math.round(t * 24)}`, mx + pw - h * 0.09, py + hh * 0.62);
+  const barW = pw - h * 0.07;
+  g.fillStyle = "rgba(26,26,26,0.08)";
+  g.fillRect(mx + h * 0.035, py + hh * 0.86, barW, Math.max(2, h * 0.0035));
+  g.fillStyle = C.accent;
+  g.fillRect(mx + h * 0.035, py + hh * 0.86, barW * mod(t * 0.07, 1), Math.max(2, h * 0.0035));
 
-  const inner = (c.cards ?? []).slice(0, 4);
-  const iw = (pw - h * 0.04 * 2 - h * 0.02) / 2;
-  const ih = (ph - h * 0.14) / 2 - h * 0.01;
-  inner.forEach((it, i) => {
-    const x = mx + h * 0.04 + (i % 2) * (iw + h * 0.02);
-    const y = py + h * 0.11 + Math.floor(i / 2) * (ih + h * 0.02);
-    const appear = Math.max(0, Math.min(1, (t - 0.25 - i * 0.15) / 0.4));
-    g.globalAlpha = appear;
-    g.beginPath();
-    g.roundRect(x, y, iw, ih, h * 0.01);
-    g.fillStyle = i === 0 ? "rgba(245,240,235,0.9)" : "rgba(26,26,26,0.03)";
-    g.fill();
-    g.strokeStyle = C.line;
-    g.stroke();
-    g.fillStyle = C.meta;
-    g.font = `700 ${Math.round(h * 0.015)}px ${SANS_UI}`;
-    spacedText(g, (it.tag || "SECTION").toUpperCase(), x + h * 0.02, y + h * 0.035, h * 0.003);
-    g.fillStyle = C.ink;
-    g.font = `700 ${Math.round(h * 0.022)}px ${SANS_UI}`;
-    g.fillText(fitText(g, it.title, iw - h * 0.04), x + h * 0.02, y + ih * 0.55);
-    g.fillStyle = C.meta;
-    g.font = `400 ${Math.round(h * 0.017)}px ${SANS_UI}`;
-    g.fillText(fitText(g, it.body ?? "", iw - h * 0.04), x + h * 0.02, y + ih * 0.75);
-    g.globalAlpha = 1;
-  });
+  // 内嵌卡：两条独立上滚的列
+  const items = pItems(c);
+  const gutter = h * 0.02;
+  const innerX = mx + h * 0.035;
+  const innerW = pw - h * 0.07;
+  const colW = (innerW - gutter) / 2;
+  const cardH = ph * 0.36;
+  const speeds = [h * 0.105, h * 0.145];
+  const offsets = [0, cardH * 0.62];
+  const pSalt = imgSalt(c.heading ?? "");
+
+  for (let col = 0; col < 2; col++) {
+    vstack(g, t, {
+      x: innerX + col * (colW + gutter),
+      y: py + hh * 1.02,
+      w: colW,
+      h: ph - hh * 1.02 - h * 0.02,
+      items,
+      itemH: cardH,
+      gap: h * 0.018,
+      speed: speeds[col],
+      offset: offsets[col],
+      draw: (it, i, x, y, iw, ih) => {
+        contentCard(
+          g,
+          x,
+          y,
+          iw,
+          ih,
+          it.title,
+          it.value ? `${it.value} · ${it.body}` : it.body,
+          it.tag,
+          (i + col) % 3 === 0,
+          theme,
+          0,
+          pSalt + i + col * 3,
+        );
+      },
+    });
+  }
   g.restore();
   void theme;
 };
@@ -424,6 +547,6 @@ export const PANEL_VARIANTS: LayoutDraw[] = [panelV0, panelV1, panelV2];
 
 export const PANEL_MOTION_SOURCES: Record<number, string[]> = {
   0: ["点阵网格缓慢平移", "卡片错峰上浮", "时间轴游标移动", "菱形标记高亮"],
-  1: ["表格行错峰淡入", "点阵平移", "状态胶囊呼吸"],
-  2: ["面板从左侧滑入", "内嵌小卡错峰浮现", "投影深度", "点阵平移"],
+  1: ["表格行持续上滚（整块纸面）", "行 zebra 底色扫过全页", "侧栏名录同步上滚", "侧栏高亮随行切换", "表头计数器跳动"],
+  2: ["两条卡列各自上滚（不同速度）", "卡片 zebra 底色扫过面板", "卡内配图随卡滚过", "面板头计数器跳动", "面板头推进条"],
 };
