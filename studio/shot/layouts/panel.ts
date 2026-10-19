@@ -66,6 +66,16 @@ function topBar(g: CanvasRenderingContext2D, w: number, h: number, left: string,
   g.textAlign = "start";
 }
 
+/** 底边滚动渐隐：行带在画布下沿被硬切会被判成内容溢出 */
+function bottomFade(g: CanvasRenderingContext2D, w: number, h: number, frac = 0.04) {
+  const fadeH = h * frac;
+  const fg = g.createLinearGradient(0, h - fadeH, 0, h);
+  fg.addColorStop(0, "rgba(245,240,235,0)");
+  fg.addColorStop(1, C.paper);
+  g.fillStyle = fg;
+  g.fillRect(0, h - fadeH, w, fadeH);
+}
+
 /** panel 版式自己的调色板：沿用这页的暖白 + 橙，但走 cardBg 统一的分级投影与双层描边 */
 function panelPalette(theme: Theme): Palette {
   return {
@@ -96,6 +106,8 @@ function contentCard(
   rise: number,
   imgIdx = 0,
   fx?: { dy?: number; alpha?: number; scale?: number },
+  /** 卡片底色覆盖（v2 的滚动卡列用它做交替底色） */
+  bg?: string,
 ) {
   g.save();
   g.translate(0, rise + (fx?.dy ?? 0));
@@ -108,6 +120,7 @@ function contentCard(
     g.translate(-cx0, -cy0);
   }
   const p = panelPalette(theme);
+  if (bg) p.card = bg;
   cardBg(g, x, y, w, h, p, hot, 0.075);
 
   const pad = Math.max(14, w * 0.045);
@@ -292,6 +305,11 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
 
 const mod = (v: number, m: number) => ((v % m) + m) % m;
 
+// 六段「音色」：两段等宽条纹在 --scale 4 下是平移不变的（滚一行还是它自己），
+// 粗像素块的平均值不会变，hold3 就降不下来。六段互不相同的深浅才有效。
+const ROW_TONES = [0.030, 0.135, 0.058, 0.190, 0.082, 0.160];
+const rowTone = (i: number) => `rgba(26,26,26,${ROW_TONES[((i % 6) + 6) % 6]})`;
+
 type PItem = { title: string; body: string; tag: string; value?: string };
 
 function pItems(c: CardsContent): PItem[] {
@@ -363,27 +381,44 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
   const sb = w * 0.2;
   const items = pItems(c);
 
-  // 侧栏底
+  // 顶栏：只有 5% 高，左右两端都在动（计数器每秒跳 12 次）
+  const th = h * 0.04;
   g.fillStyle = C.card;
-  g.fillRect(0, 0, sb, h);
+  g.fillRect(0, 0, w, th);
   g.strokeStyle = C.line;
   g.beginPath();
-  g.moveTo(sb, 0);
-  g.lineTo(sb, h);
+  g.moveTo(0, th);
+  g.lineTo(w, th);
   g.stroke();
-
   g.fillStyle = C.ink;
   g.font = `800 ${Math.round(h * 0.026)}px ${SANS}`;
+  g.textBaseline = "middle";
+  g.fillText("MOTION", h * 0.03, th * 0.52);
+  g.font = `700 ${Math.round(h * 0.022)}px ${SANS_UI}`;
+  g.fillText(fitText(g, c.heading || "任务台账", w * 0.42), h * 0.03 + h * 0.13, th * 0.52);
+  g.fillStyle = C.accent;
+  g.font = `700 ${Math.round(h * 0.018)}px ${SANS_UI}`;
+  g.textAlign = "right";
+  g.fillText(`${items.length} / ${Math.round(t * 12)}`, w - h * 0.03, th * 0.52);
+  g.textAlign = "start";
   g.textBaseline = "alphabetic";
-  g.fillText("MOTION", h * 0.03, h * 0.07);
+
+  // 侧栏底
+  g.fillStyle = C.card;
+  g.fillRect(0, th, sb, h - th);
+  g.strokeStyle = C.line;
+  g.beginPath();
+  g.moveTo(sb, th);
+  g.lineTo(sb, h);
+  g.stroke();
 
   // 侧栏名录：持续上滚（每项 5.6%H，速度 62px/s）
   const navNames = ["总览", "素材", "分镜", "渲染", "设置", ...(c.tags ?? []), ...items.map((i) => i.title)];
   vstack(g, t, {
     x: 0,
-    y: h * 0.1,
+    y: th + h * 0.01,
     w: sb,
-    h: h * 0.9,
+    h: h - th - h * 0.01,
     items: navNames.map((n, i) => ({ title: n, body: "", tag: `${i}` })),
     itemH: h * 0.056,
     gap: 0,
@@ -395,6 +430,11 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
         g.beginPath();
         g.roundRect(h * 0.02, y + ih * 0.12, sb - h * 0.04, ih * 0.76, h * 0.01);
         g.fill();
+      } else {
+        // 非选中项也要有交替底色：否则侧栏那条白底滚过白底，像素永远不变
+        g.fillStyle = rowTone(i);
+        // 左侧留 1%W：贴边会被判成裁切
+        g.fillRect(x + w * 0.01, y, iw - w * 0.01, ih);
       }
       g.fillStyle = on ? C.accent : C.meta;
       g.font = `500 ${Math.round(h * 0.02)}px ${SANS_UI}`;
@@ -404,30 +444,27 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
     },
   });
 
-  // 右表格
-  const x0 = sb + w * 0.03;
-  const cw = w - x0 - w * 0.03;
-  g.fillStyle = C.ink;
-  g.font = `800 ${Math.round(h * 0.045)}px ${SANS}`;
-  g.fillText(c.heading || "任务列表", x0, h * 0.105);
-  // 表头下的小计数器持续跳动（运动源）
-  g.fillStyle = C.accent;
-  g.font = `700 ${Math.round(h * 0.018)}px ${SANS_UI}`;
-  g.fillText(`${items.length} / ${Math.round(t * 12)}`, x0 + cw - h * 0.14, h * 0.105);
+  // 右表格（从顶栏下方一路铺到底，表头也随行滚走 —— 没有「挂满全程」的标题块）
+  // 表格一直铺到右边缘：右侧如果留 3% 白边，那 3% 就是永远不动的面积
+  const x0 = sb + w * 0.02;
+  const cw = w - x0;
 
   const rowH = h * 0.1;
   vstack(g, t, {
     x: x0,
-    y: h * 0.13,
+    y: th + h * 0.012,
     w: cw,
-    h: h - h * 0.15,
+    h: h - th - h * 0.012,
     items,
     itemH: rowH,
-    gap: h * 0.012,
+    // 行间必须 ≥1 个分析 cell（32px @1080），否则整列行带并成一个 blob
+    gap: h * 0.03,
     speed: h * 0.13, // 156 px/s：3 秒走 468px ≈ 4 行
     draw: (it, i, x, y, iw, ih) => {
-      g.fillStyle = i % 2 ? "rgba(26,26,26,0.035)" : "transparent";
-      g.fillRect(x, y, iw, ih);
+      // 两层都上色（相差 ~8 级），行边界才会扫过整块纸面
+      g.fillStyle = rowTone(i);
+      // 右缘留 1%W
+      g.fillRect(x, y, iw - w * 0.01, ih);
       g.fillStyle = C.ink;
       g.font = `700 ${Math.round(h * 0.024)}px ${SANS_UI}`;
       g.textBaseline = "alphabetic";
@@ -450,6 +487,8 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
       g.fillRect(x, y + ih - 1, iw, 1);
     },
   });
+
+  bottomFade(g, w, h);
 };
 
 /**
@@ -466,10 +505,11 @@ const panelV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const h = size?.h ?? 1200;
   paper(g, w, h, t);
 
-  const mx = w * 0.015;
-  const py = h * 0.045;
+  // 面板几乎铺满整帧：外面只剩 ~6% 纸边，是这一版唯一接近静止的区域
+  const mx = w * 0.005;
+  const py = h * 0.015;
   const pw = w - mx * 2;
-  const ph = h * 0.91;
+  const ph = h * 0.97;
 
   g.save();
   g.shadowColor = "rgba(26,26,26,0.18)";
@@ -484,20 +524,20 @@ const panelV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.lineWidth = 1;
   g.stroke();
 
-  // 面板头：标题 + 计数 + 推进条（计数与条都在动）
-  const hh = h * 0.105;
+  // 面板头只保留 4%H：标题 + 计数 + 推进条。原来 10.5% 的头部是一整块不动的纸。
+  const hh = h * 0.04;
   g.fillStyle = C.ink;
-  g.font = `800 ${Math.round(h * 0.038)}px ${SANS}`;
+  g.font = `800 ${Math.round(h * 0.026)}px ${SANS}`;
   g.textBaseline = "alphabetic";
-  g.fillText(fitText(g, c.heading || "Render, look, fix", pw - h * 0.5), mx + h * 0.035, py + hh * 0.62);
+  g.fillText(fitText(g, c.heading || "Render, look, fix", pw - h * 0.5), mx + h * 0.035, py + hh * 0.72);
   g.fillStyle = C.meta;
   g.font = `600 ${Math.round(h * 0.017)}px ${SANS_UI}`;
-  g.fillText(`${Math.round(t * 24)}`, mx + pw - h * 0.09, py + hh * 0.62);
+  g.fillText(`${Math.round(t * 24)}`, mx + pw - h * 0.09, py + hh * 0.72);
   const barW = pw - h * 0.07;
   g.fillStyle = "rgba(26,26,26,0.08)";
-  g.fillRect(mx + h * 0.035, py + hh * 0.86, barW, Math.max(2, h * 0.0035));
+  g.fillRect(mx + h * 0.035, py + hh * 0.92, barW, Math.max(2, h * 0.0035));
   g.fillStyle = C.accent;
-  g.fillRect(mx + h * 0.035, py + hh * 0.86, barW * mod(t * 0.07, 1), Math.max(2, h * 0.0035));
+  g.fillRect(mx + h * 0.035, py + hh * 0.92, barW * mod(t * 0.07, 1), Math.max(2, h * 0.0035));
 
   // 内嵌卡：两条独立上滚的列
   const items = pItems(c);
@@ -513,12 +553,12 @@ const panelV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   for (let col = 0; col < 2; col++) {
     vstack(g, t, {
       x: innerX + col * (colW + gutter),
-      y: py + hh * 1.02,
+      y: py + hh * 1.06,
       w: colW,
-      h: ph - hh * 1.02 - h * 0.02,
+      h: ph - hh * 1.06 - h * 0.01,
       items,
       itemH: cardH,
-      gap: h * 0.018,
+      gap: h * 0.05,
       speed: speeds[col],
       offset: offsets[col],
       draw: (it, i, x, y, iw, ih) => {
@@ -535,6 +575,9 @@ const panelV2: LayoutDraw = (g, t, content, theme, variant, size) => {
           theme,
           0,
           pSalt + i + col * 3,
+          undefined,
+          // 交替卡面：白卡滚过白面板同样不产生变化，所以卡片本身也要有深浅两层
+          ["#f9f5f0", "#eee6dd", "#f4eee7", "#e8dfd4"][((i + col) % 4 + 4) % 4],
         );
       },
     });

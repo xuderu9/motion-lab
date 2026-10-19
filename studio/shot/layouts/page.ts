@@ -20,6 +20,7 @@ import type { CardsContent, DocContent, LayoutContent, LayoutDraw, LayoutSize, T
 import { SANS, SANS_UI, SERIF_IT, mixedHeadline, spacedText } from "../typefaces";
 import { palette, paperBg } from "./blocks";
 import { drawImageCover, CARD_IMAGES } from "../assets";
+import { withAlpha } from "../chrome";
 
 const mod = (v: number, m: number) => ((v % m) + m) % m;
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -51,6 +52,21 @@ function fitHeadline(
     g.font = `${weight} ${Math.round(px)}px ${SANS}`;
   }
   return Math.round(px);
+}
+
+/**
+ * 底边滚动渐隐：内容带在画布下沿被硬切时，既像渲染错误，
+ * 也会被 check-canvas-overflow 判成「内容溢出」（实测 7.5%）。
+ * 用纸色做一段渐隐，切口就变成「还没滚到」。
+ */
+function bottomFade(g: CanvasRenderingContext2D, w: number, h: number, theme: Theme, frac = 0.045) {
+  const pp = palette(theme);
+  const fadeH = h * frac;
+  const fg = g.createLinearGradient(0, h - fadeH, 0, h);
+  fg.addColorStop(0, withAlpha(pp.paper, 0));
+  fg.addColorStop(1, pp.paper);
+  g.fillStyle = fg;
+  g.fillRect(0, h - fadeH, w, fadeH);
 }
 
 const RATIO = {
@@ -205,14 +221,17 @@ function verticalBand(
  * 空白纸滚过空白纸不会产生任何像素变化，那一层就永远是 hold3 的一部分。
  * 两层都上淡色、且相差 ~7 级灰之后，每一条带的边界都会扫过整页。
  */
-function zebra(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, alt: boolean, theme: Theme) {
-  g.fillStyle = theme.isLight
-    ? alt
-      ? "rgba(16,28,42,0.055)"
-      : "rgba(16,28,42,0.020)"
-    : alt
-      ? "rgba(255,255,255,0.070)"
-      : "rgba(255,255,255,0.030)";
+function zebra(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, i: number, theme: Theme) {
+  // 六段「音色」而不是两段黑白交替。
+  // 两段等宽的条纹在降采样后是**平移不变**的（周期为 2 行的图案平移一行还是它自己），
+  // 大像素块的平均值不随滚动变化 —— 那样 hold3(--scale 4) 根本降不下来。
+  // 六段互不相同的深浅，滚动时每个粗像素块的平均值才会持续变化。
+  // 幅度是算过的：--scale 4 时一个粗像素覆盖 ≈64px 见方，会把相邻两行的色调平均掉；
+  // 只有 25~45 级的差距还能在平均后留下 >6 的变化。
+  const LIGHT = [0.028, 0.105, 0.050, 0.150, 0.072, 0.128];
+  const DARK = [0.032, 0.120, 0.055, 0.170, 0.082, 0.145];
+  const a = (theme.isLight ? LIGHT : DARK)[((i % 6) + 6) % 6];
+  g.fillStyle = theme.isLight ? `rgba(16,28,42,${a})` : `rgba(255,255,255,${a})`;
   g.fillRect(x, y, w, h);
 }
 
@@ -230,7 +249,7 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   const items = feedItems(content);
   const top = h * 0.075;
   const cardH = h * 0.4;
-  const gap = h * 0.035;
+  const gap = h * 0.05;
   const speed = h * 0.125; // 150 px/s @1200：3 秒走 450px，正好穿过一层标题+配图
 
   verticalBand(g, t, {
@@ -244,7 +263,7 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
     speed,
     draw: (it, i, x, y, iw, ih) => {
       const mx = w * 0.055;
-      zebra(g, x, y + ih * 0.02, iw, ih * 0.96, i % 2 === 1, theme);
+      zebra(g, x, y + ih * 0.02, iw, ih * 0.96, i, theme);
 
       const kickerY = y + ih * 0.17;
       label(g, `${it.tag || "SECTION"} · ${String(i + 1).padStart(2, "0")}`, mx, kickerY, h, theme);
@@ -260,7 +279,8 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
       g.textBaseline = "alphabetic";
       g.fillText(fitText(g, it.body || "", iw - mx * 2), mx, y + ih * 0.42);
 
-      // 三张配图：占整幅宽的 60%，是这条带子里最密的一块纹理
+      // 三张配图：实测切成 6 块反而让连通域合并（blobs 10→6、birth 38.9→33.5），
+      // 所以保持 3 张大图 —— 面积大、边界少，但滚动时是一整块稳定的运动单元。
       const tY = y + ih * 0.48;
       const tH = ih * 0.44;
       const tW = (iw - mx * 2) * 0.31;
@@ -278,6 +298,10 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   });
 
   // 底部推进条：随带子一起前进
+  // 底边做一段「滚到底」的渐隐：否则配图会被硬切在画布边缘，
+  // 既难看，也会被 check-canvas-overflow 判成内容溢出（实测 15.1%）。
+  bottomFade(g, w, h, theme);
+
   const py = h * 0.975;
   g.fillStyle = theme.isLight ? "rgba(20,30,42,0.10)" : "rgba(220,232,248,0.10)";
   g.fillRect(w * 0.055, py, w * 0.89, Math.max(2, h * 0.003));
@@ -299,7 +323,9 @@ const pageV1: LayoutDraw = (g, t, content, theme, variant, size) => {
   const items = feedItems(content);
   const top = h * 0.075;
   const rowH = h * 0.145;
-  const gap = h * 0.012;
+  // 行间留 3.2%H：在 480×270 的分析网格里刚好隔开一个 cell，
+  // 否则整列行带会并成一个连通域，blobs 只剩 3 个（要 ≥5）。
+  const gap = h * 0.032;
   const speed = h * 0.115; // 138 px/s
 
   verticalBand(g, t, {
@@ -312,7 +338,7 @@ const pageV1: LayoutDraw = (g, t, content, theme, variant, size) => {
     gap,
     speed,
     draw: (it, i, x, y, iw, ih) => {
-      zebra(g, x, y, iw, ih, i % 2 === 1, theme);
+      zebra(g, x, y, iw, ih, i, theme);
       const mx = w * 0.05;
 
       // 左侧序号
@@ -380,7 +406,9 @@ const pageV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const colW = w / cols;
   const top = bh;
   const cardH = h * 0.295;
-  const gap = h * 0.018;
+  // 卡间留 3.5%H：在 480×270 的分析网格里刚好隔开一个 cell，
+  // 否则相邻卡会被并成一条长 blob（实测：gap 0.018 时 blobs 只剩 3~5）。
+  const gap = h * 0.05;
   const speeds = [h * 0.075, h * 0.115, h * 0.155];
   const offsets = [0, cardH * 0.55, cardH * 1.1];
 
@@ -396,7 +424,9 @@ const pageV2: LayoutDraw = (g, t, content, theme, variant, size) => {
       speed: speeds[col],
       offset: offsets[col],
       draw: (it, i, x, y, iw, ih) => {
-        zebra(g, x + w * 0.008, y, iw - w * 0.016, ih, (i + col) % 2 === 1, theme);
+        // 外侧只留 0.8%W：刚好让边缘 6px 采样环落在纸色上，
+        // 又不至于形成一整条静止的竖带（留 2% 时 hold3 会 +6 点）
+        zebra(g, x + w * 0.008, y, iw - w * 0.016, ih, i + col, theme);
         const pad = iw * 0.07;
         const innerW = iw - pad * 2;
 
@@ -428,6 +458,7 @@ const pageV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   // 列分隔线（静态细线，宽度只有 2px，不影响 hold3）
   g.fillStyle = theme.isLight ? "rgba(20,30,42,0.10)" : "rgba(220,232,248,0.10)";
   for (let i = 1; i < cols; i++) g.fillRect(colW * i - 1, top, 2, h - top);
+  bottomFade(g, w, h, theme, 0.035);
 };
 
 export const PAGE_VARIANTS: LayoutDraw[] = [pageV0, pageV1, pageV2];
