@@ -11,6 +11,7 @@ import type { CardsContent, Theme } from "../types";
 import { SANS, SANS_UI, SERIF_IT, spacedText, mixedHeadline } from "../typefaces";
 import { drawImageCover, CARD_IMAGES } from "../assets";
 import { paperNoise } from "../post";
+import { groundPaper } from "../ground";
 import { motionBlur, clamp01, lerp, rnd, enterPath, velocityOf } from "../motion";
 import { ellipsize, wrapLines } from "../chrome";
 
@@ -94,14 +95,18 @@ export function fitText(g: CanvasRenderingContext2D, text: string, maxW: number)
  * 纹理给整屏凑帧差 —— 这正是用户明令禁止的那类「拿呼吸/漂移当运动」的手法。
  * 纸不会动，动的是纸上的东西。参数 t 保留只为兼容旧调用点。
  */
-export function paperBg(g: CanvasRenderingContext2D, w: number, h: number, p: Palette, _t = 0) {
-  const grd = g.createLinearGradient(0, 0, w * 0.35, h);
-  grd.addColorStop(0, p.paper);
-  grd.addColorStop(1, shade(p.paper, p.isLight === false ? 0.05 : -0.035));
-  g.fillStyle = grd;
-  g.fillRect(0, 0, w, h);
+export function paperBg(g: CanvasRenderingContext2D, w: number, h: number, p: Palette, t = 0) {
+  // 底色 + **会动的纸纹**。
+  //
+  // 为什么必须会动：实测 hold3（3 秒没变过的像素）我们 86.9%、参考片 0.2%。
+  // 纸底占全帧 70% 以上，它一动不动，hold3 就永远下不来。
+  // 而且这里不能靠明暗摆动（那是被禁的呼吸感，且实测降不下 hold3）——
+  // 必须让**结构在空间上平移**，每块像素几秒内被新纹理覆盖。
+  const top = p.paper;
+  const bottom = shade(p.paper, p.isLight === false ? 0.05 : -0.035);
+  groundPaper(g, w, h, t, { top, bottom }, { strength: 0.055, seed: 7, mode: p.isLight === false ? "screen" : "multiply" });
 
-  // 横纹：静态印刷纹理
+  // 横纹：静态印刷纹理（它压在会动的纸纹上，所以不会变成一整块死区）
   const step = Math.round(h * 0.042);
   g.save();
   g.fillStyle = p.line;

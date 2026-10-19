@@ -106,6 +106,7 @@ def probe(path: str, fps_hint: float | None = None):
 
     ring = deque(maxlen=BLOB_K + 1)
     age = None                # 连续多少帧没变
+    ref = None                # 每个像素「上次被认为变了」时的值
     alive: dict[int, Blob] = {}
     next_id = 0
     done: list[Blob] = []
@@ -122,6 +123,7 @@ def probe(path: str, fps_hint: float | None = None):
     for f in it:
         if age is None:
             age = np.zeros((H, W), dtype=np.int32)
+            ref = f.copy()
             ring.append(f.astype(np.int16))
             t += 1
             continue
@@ -137,6 +139,11 @@ def probe(path: str, fps_hint: float | None = None):
         if tur > 0.15:
             resets += 1
 
+        # 关键修正：age 用「与上次变化时的值」比较，而不是「与上一帧」比较。
+        # 否则缓慢连续的位移（纸纹滚动、匀速平移）每帧只差 1 个灰阶，永远过不了阈值，
+        # 会被误判成「静止」—— 实测让把会动的纸纹也算成 hold3=100%。
+        chg = np.abs(f.astype(np.int16) - ref.astype(np.int16)) > DIFF_T
+        ref = np.where(chg, f, ref)
         age = np.where(chg, 0, age + 1)
         s_hold1.append(float((age > fps * 1.0).mean()))
         s_hold3.append(float((age > fps * 3.0).mean()))
