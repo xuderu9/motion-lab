@@ -162,8 +162,8 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   }
 
   // 底部黑色结论条
-  const by = h * 0.792;
-  const bh = h * 0.132;
+  const by = h * 0.655;
+  const bh = h * 0.1;
   g.beginPath();
   g.roundRect(mx, by, w - mx * 2, bh, h * 0.012);
   g.fillStyle = C.rule;
@@ -178,7 +178,7 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.fillText(fitText(g, line2, w - mx * 2 - bh * 0.6), mx + bh * 0.3, by + bh * 0.78);
 
   // 底部时间轴：细线 + 菱形，游标匀速走
-  const ty = h * 0.955;
+  const ty = h * 0.765;
   g.strokeStyle = C.line;
   g.lineWidth = 1;
   g.beginPath();

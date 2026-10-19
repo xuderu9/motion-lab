@@ -24,14 +24,16 @@ type P = { paper: string; card: string; text: string; dim: string; accent: strin
 
 function pal(light: boolean): P {
   return light
-    ? { paper: "#f7f4ef", card: "#ffffff", text: "#181a1c", dim: "rgba(24,26,28,0.6)", accent: "#d9542b", line: "rgba(24,26,28,0.10)" }
-    : { paper: "#0d0f12", card: "rgba(255,255,255,0.08)", text: "#eef2f8", dim: "rgba(226,234,246,0.62)", accent: "#ff7043", line: "rgba(226,234,246,0.12)" };
+    // 亮主题下不能给纯白底：白卡片压在白背景上等于隐形（实测洗白）。
+    // 用中灰暖调，白卡片和深色粒子才能同时读出来。
+    ? { paper: "#d9d2c7", card: "#ffffff", text: "#181a1c", dim: "rgba(24,26,28,0.66)", accent: "#c2451f", line: "rgba(24,26,28,0.16)" }
+    : { paper: "#1b2330", card: "rgba(255,255,255,0.08)", text: "#eef2f8", dim: "rgba(226,234,246,0.62)", accent: "#ff7043", line: "rgba(226,234,246,0.12)" };
 }
 
 function bg(g: CanvasRenderingContext2D, w: number, h: number, p: P, light: boolean, t: number) {
   const grd = g.createLinearGradient(0, 0, 0, h);
   grd.addColorStop(0, p.paper);
-  grd.addColorStop(1, light ? "#efe9e0" : "#05070a");
+  grd.addColorStop(1, light ? "#b9b1a4" : "#0c1017");
   g.fillStyle = grd;
   g.fillRect(0, 0, w, h);
   // 极淡的横向条纹底噪，避免死平

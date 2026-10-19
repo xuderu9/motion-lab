@@ -18,6 +18,7 @@ import { toItems } from "./scenes/types";
 import { homographyMatrix3d } from "./homography";
 import { scanlines, screenNoise, sheen, tintBreath } from "./chrome";
 import { useLayoutEffect, useRef } from "react";
+import { drawSafeGuides } from "./safezone";
 
 export const SCREEN_SIZE: LayoutSize = { w: CANVAS_W, h: CANVAS_H };
 export const FULL_SIZE: LayoutSize = { w: 1920, h: 1080 };
@@ -88,6 +89,9 @@ export function paintScreen(
   else paintLayout(g, t, spec.layout, spec.variant, spec.content, theme, size);
 
   g.restore();
+
+  // 每帧末尾叠安全区参考线（仅调试）
+  if (spec.debug === "safe") drawSafeGuides(g, W, H);
 
   // 全屏后处理。透明模式跳过：这些是「屏幕质感」，压在照片底板上会显脏。
   if (!transparent) {

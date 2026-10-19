@@ -15,6 +15,12 @@ import { solve } from "./solve";
 import { deriveContent } from "./derive";
 import { loadRegistry, pickEnvironment } from "./environments";
 import { supportedLayouts } from "./features";
+import { assignVisuals, toCards } from "./visual";
+
+/** 内容型版式：信息结构强，优先保留 */
+const NATIVE_FOR_VISUAL = ["chart", "timeline", "map", "code"];
+/** 风格型版式：吃任意内容，负责多样性与空间感 */
+const STYLE_FOR_VISUAL = ["page", "panel", "mix", "space"];
 import { DEFAULT_OPTIONS } from "./types";
 import type { Plan, PlannedShot, Warning, PlannerOptions } from "./types";
 
@@ -74,6 +80,20 @@ const reg = loadRegistry(platesPath);
 const shots: PlannedShot[] = [];
 const base = parsed.lines[0].start;
 
+// 视觉分配：内容信号强的镜头保留原生版式，其余套呈现风格；
+// 同时决定 presentation（full 为主，screen 每片 2~3 次定场，overlay 一次）
+const strongGen = segs.map((sg, i) => {
+  const sc = scoreLayouts(sg.features);
+  const nat = solved.assigns[i]?.layout;
+  return !!nat && NATIVE_FOR_VISUAL.includes(nat) && (sc[nat] ?? 0) >= 2.5;
+});
+const visual = assignVisuals(
+  segs,
+  solved.assigns.map((x) => x.layout),
+  strongGen,
+  opt.seed,
+);
+
 if (solved.assigns.length !== segs.length) {
   console.error(
     `求解结果不完整：${segs.length} 段只排了 ${solved.assigns.length} 个镜头。` +
@@ -85,7 +105,6 @@ if (solved.assigns.length !== segs.length) {
 for (let i = 0; i < segs.length; i++) {
   const seg = segs[i];
   const a = solved.assigns[i];
-  const shotId = `s${String(i + 1).padStart(2, "0")}-${a.layout}-v${a.variant}`;
   const warn = (kind: string, detail: string) => warnings.push({ shotId, kind, detail });
 
   // 上下文：本段前后各 2 段。doc 版式需要足够多的字才不会循环重复
@@ -94,8 +113,32 @@ for (let i = 0; i < segs.length; i++) {
   const ctxFrom = Math.max(0, i - 5);
   const ctxTo = Math.min(segs.length, i + 6);
   const context = segs.slice(ctxFrom, ctxTo).map((x) => x.text).join("");
-  const content = deriveContent(a.layout, seg.text, seg.start - base, warn, context);
-  const envEntry = pickEnvironment(reg, a.layout, a.theme, i);
+  const v = visual[i] ?? { layout: a.layout, variant: a.variant, presentation: "full" as const };
+  const shotId = `s${String(i + 1).padStart(2, "0")}-${v.layout}-v${v.variant}`;
+  // 空间族（space）是暗底场景，配暗主题会整帧掉到 20 以下（实测 265 帧黑场）。
+  // 处理办法同「特写只能配亮主题」：在分配层直接换主题。
+  // 亮度规则（实测得出，不是拍脑袋）：
+  //   · 整帧呈现（full / overlay）里，暗主题版式整帧只有 ~40，亮底卡片 ~230，
+  //     同一部片子里混着会一闪一闪。所以整帧一律用亮主题。
+  //   · 暗主题只留给 screen（房间里的平板）——那里亮度由环境补上，实测 ~100。
+  // 三档亮度分工（实测得出）：
+  //   · 整帧页面（page/panel/mix/native）用亮主题 —— 亮底卡片约 210~237
+  //   · 空间族（space）用深蓝 —— 它自带暗底，实测 35~60，靠粒子/卡片自发光
+  //   · 房间平板（screen）保留原主题 —— 环境补亮度，约 100~125
+  // 强套亮主题会让空间场景"洗白"（白卡片贴白背景，实测几乎看不见）。
+  const LIGHT_THEMES = ["light", "warm-sand"] as const;
+  const theme =
+    v.layout === "space"
+      ? ("deep-blue" as const)
+      : v.presentation !== "screen" && !LIGHT_THEMES.includes(a.theme as never)
+        ? LIGHT_THEMES[i % LIGHT_THEMES.length]
+        : v.presentation === "screen" && LIGHT_THEMES.includes(a.theme as never)
+          ? ("deep-blue" as const)
+          : a.theme;
+  const isStyle = STYLE_FOR_VISUAL.includes(v.layout);
+  let content = deriveContent(isStyle ? "cards" : v.layout, seg.text, seg.start - base, warn, context);
+  if (isStyle) content = toCards(content, seg.text.slice(0, 12));
+  const envEntry = pickEnvironment(reg, v.layout, theme, i);
   const durationInFrames = Math.max(1, Math.round((seg.end - seg.start) * fps));
 
   const sc = scoreLayouts(seg.features);
@@ -105,9 +148,10 @@ for (let i = 0; i < segs.length; i++) {
     id: shotId,
     durationInFrames,
     fps: fps as 30 | 60,
-    layout: a.layout,
-    variant: a.variant,
-    theme: a.theme,
+    layout: v.layout,
+    variant: v.variant,
+    presentation: v.presentation,
+    theme,
     env: envEntry.env,
     content,
     overlay: undefined,

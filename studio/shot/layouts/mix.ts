@@ -239,7 +239,7 @@ const mix4: LayoutDraw = (g, t, content, theme, variant, size) => {
   const mx = w * 0.06;
   const gap = w * 0.02;
   const cw = (w - mx * 2 - gap * 2) / 3;
-  const ch = h * 0.34;
+  const ch = h * 0.245;
   items.forEach((it, i) => {
     const ap = Math.max(0, Math.min(1, (t - 0.25 - i * 0.16) / 0.55));
     contentTile(g, it, mx + i * (cw + gap), topH + h * 0.06 + (1 - ap) * h * 0.03, cw, ch, p, false, 0);
@@ -277,7 +277,7 @@ const mix5: LayoutDraw = (g, t, content, theme, variant, size) => {
       g,
       it,
       w * 0.42 + i * (w * 0.17),
-      h * 0.42 + i * (h * 0.2),
+      h * 0.37 + i * (h * 0.175),
       cw,
       ch,
       p,
@@ -288,7 +288,7 @@ const mix5: LayoutDraw = (g, t, content, theme, variant, size) => {
   });
 
   // 黑条固定在左下，与右上方的卡阵对角呼应
-  darkStrip(g, (c.tags ?? []).slice(0, 2).length ? (c.tags as string[]).slice(0, 2) : ["一条结论", "另一条结论"], mx, h * 0.8, w * 0.42, h * 0.12, p);
+  darkStrip(g, (c.tags ?? []).slice(0, 2).length ? (c.tags as string[]).slice(0, 2) : ["一条结论", "另一条结论"], mx, h * 0.645, w * 0.42, h * 0.1, p);
 };
 
 export const MIX_VARIANTS: LayoutDraw[] = [mix0, mix1, mix2, mix3, mix4, mix5];

@@ -150,17 +150,17 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   const label1Y = baseY + h * 0.082;
   label(g, "picture · camera", mx, label1Y, h, theme);
   const stripY = label1Y + h * 0.03;
-  const stripH = h * 0.148;
+  const stripH = h * 0.132;
   const gap = w * 0.012;
   const tw = (w - mx * 2 - gap * (n - 1)) / n;
   const active = Math.floor((t * 1.6) % n);
   for (let i = 0; i < n; i++) thumb(g, mx + i * (tw + gap), stripY, tw, stripH, i, i === active, theme);
 
   // 第二带：波形 + 播放头 + 括号
-  const label2Y = stripY + stripH + h * 0.062;
+  const label2Y = stripY + stripH + h * 0.05;
   label(g, "sound · microphone", mx, label2Y, h, theme);
   const waveY = label2Y + h * 0.028;
-  const waveH = h * 0.118;
+  const waveH = h * 0.096;
   const bars = 64;
   const bw = (w - mx * 2) / bars;
   const playX = mx + ((t * 0.22) % 1) * (w - mx * 2);
@@ -180,7 +180,7 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.stroke();
 
   // 括号 + 数值标注
-  const brY = waveY + waveH + h * 0.026;
+  const brY = waveY + waveH + h * 0.022;
   g.strokeStyle = theme.isLight ? "#12161c" : "#e8eef8";
   g.lineWidth = 2.5;
   g.beginPath();
