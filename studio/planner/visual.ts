@@ -79,14 +79,26 @@ export function assignVisuals(
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 
-  // 1) 强信号的镜头保留原生版式
+  // ── 比例铁律 ──
+  // 老的原生版式（doc/chart/code/map/timeline/cards）是按 1600×1200 = 4:3 写的。
+  // 直接放进 1920×1080 的整帧，要么被裁要么留边，等于「把 4:3 硬拉成 16:9」——
+  // 用户明确不要这个。
+  // 所以：**原生版式只出现在 screen（平板屏幕，本来就是 4:3）**；
+  // 整帧/浮层一律用天生 16:9 的风格族（page/panel/mix/space）。
+  const MAX_SCREEN = Math.max(2, Math.ceil(n / 4));
+
+  let screenUsed = 0;
   for (let i = 0; i < n; i++) {
-    if (strong[i] && NATIVE.includes(nativePick[i])) {
-      out[i] = { layout: nativePick[i], variant: (Math.floor(rnd() * 3) as 0 | 1 | 2), presentation: "full" };
+    const nat = nativePick[i];
+    const canNative =
+      strong[i] && NATIVE.includes(nat) && screenUsed < MAX_SCREEN && i % 3 !== 0;
+    if (canNative) {
+      out[i] = { layout: nat, variant: Math.floor(rnd() * 3) as 0 | 1 | 2, presentation: "screen" };
+      screenUsed++;
     }
   }
 
-  // 2) 其余走风格型，轮转 + 相邻不同族
+  // 其余走风格族：轮转 + 相邻不同族
   const counts: Record<string, number> = {};
   let cursor = Math.floor(rnd() * STYLE.length);
   for (let i = 0; i < n; i++) {
@@ -96,7 +108,6 @@ export function assignVisuals(
       cursor++;
       fam = STYLE[cursor % STYLE.length];
     }
-    // mix / space 有 6 个变体，page / panel 只有 3 个
     const maxV = fam === "mix" || fam === "space" ? 6 : 3;
     const v = Math.floor(rnd() * maxV) as 0 | 1 | 2 | 3 | 4 | 5;
     out[i] = { layout: fam, variant: v, presentation: "full" };
@@ -104,22 +115,10 @@ export function assignVisuals(
     cursor++;
   }
 
-  // 3) 定场镜头：每片 2~3 次切回房间里的平板（参考片里 screen 只占 ~5%）
-  const want = Math.max(2, Math.min(3, Math.round(n / 7)));
-  const idxs: number[] = [];
-  const step = Math.max(2, Math.floor(n / want));
-  for (let k = 0; k < want; k++) {
-    const i = Math.min(n - 1, 1 + k * step);
-    if (!idxs.includes(i)) idxs.push(i);
-  }
-  idxs.forEach((i) => {
-    out[i] = { ...out[i], presentation: "screen" };
-  });
-
-  // 4) 收尾：如果全片没有 overlay，挑一个中间镜头用底板浮层，增加质感层次
-  if (!out.some((o) => o.presentation === "overlay") && n >= 6) {
+  // 至少一次浮层（即梦底板 + 透明内容），给质感层次
+  if (!out.some((o) => o.presentation === "overlay") && n >= 5) {
     const i = Math.floor(n * 0.62);
-    out[i] = { ...out[i], presentation: "overlay", layout: "space", variant: 5 };
+    out[i] = { ...out[i], presentation: "overlay", layout: "mix", variant: 1 };
   }
 
   return out;

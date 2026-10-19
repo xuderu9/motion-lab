@@ -16,7 +16,7 @@ import { paintLayout } from "./layouts";
 import { getScene } from "./scenes";
 import { toItems } from "./scenes/types";
 import { homographyMatrix3d } from "./homography";
-import { scanlines, screenNoise, sheen, tintBreath } from "./chrome";
+import { scanlines, screenNoise } from "./chrome";
 import { useLayoutEffect, useRef } from "react";
 import { drawSafeGuides } from "./safezone";
 
@@ -71,16 +71,11 @@ export function paintScreen(
     g.fillRect(0, 0, W, H);
   }
 
-  // 虚拟相机：极缓漂移 + 轻微推拉。
-  // 参考片相机位移为零，动的是屏幕里的应用 —— 所以这里幅度必须很小，
-  // 它的作用是让整屏像素每帧都有微小位移，撑起帧差底噪。
-  const camScale = 1.01 + 0.012 * Math.sin(t * 0.35);
-  const camX = 14 * Math.sin(t * 0.31 + 1.2);
-  const camY = 9 * Math.sin(t * 0.43);
-  g.save();
-  g.translate(W / 2 + camX, H / 2 + camY);
-  g.scale(camScale, camScale);
-  g.translate(-W / 2, -H / 2);
+  // ⚠️ 这里**故意不做整屏呼吸**。
+  // 之前有一层「虚拟相机缓慢推拉 + 轻微漂移」，本质是用周期性缩放制造活动感；
+  // 用户明确讨厌这种呼吸感，且严禁用它充抵静止帧。
+  // 现在整屏固定，运动必须来自内容本身（卡片位移、数字变化、相机推进）。
+
 
   // 有场景就用场景（吃条目，与内容解耦）；否则按 layout 画
   const scene = getScene(spec.scene);
@@ -95,8 +90,7 @@ export function paintScreen(
 
   // 全屏后处理。透明模式跳过：这些是「屏幕质感」，压在照片底板上会显脏。
   if (!transparent) {
-    sheen(g, t, W, H, theme);
-    tintBreath(g, t, W, H, theme);
+    // 只保留静态质感（扫描线是纹理，不是呼吸）。sheen / tintBreath 已删除。
     scanlines(g, frame, W, H, theme);
     // 最后一层：逐帧伪随机抖动（模拟录屏底噪，参考片实测 1.5~3）
     screenNoise(g, frame, W, H, theme);

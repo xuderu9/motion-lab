@@ -114,6 +114,7 @@ for (let i = 0; i < segs.length; i++) {
   const ctxTo = Math.min(segs.length, i + 6);
   const context = segs.slice(ctxFrom, ctxTo).map((x) => x.text).join("");
   const v = visual[i] ?? { layout: a.layout, variant: a.variant, presentation: "full" as const };
+  // 原生版式（4:3）只在 screen 里出现；其余一律风格族（16:9 原生）
   const shotId = `s${String(i + 1).padStart(2, "0")}-${v.layout}-v${v.variant}`;
   // 空间族（space）是暗底场景，配暗主题会整帧掉到 20 以下（实测 265 帧黑场）。
   // 处理办法同「特写只能配亮主题」：在分配层直接换主题。
@@ -136,6 +137,7 @@ for (let i = 0; i < segs.length; i++) {
           ? ("deep-blue" as const)
           : a.theme;
   const isStyle = STYLE_FOR_VISUAL.includes(v.layout);
+  // 风格族吃卡片内容；原生版式吃自己的结构化内容
   let content = deriveContent(isStyle ? "cards" : v.layout, seg.text, seg.start - base, warn, context);
   if (isStyle) content = toCards(content, seg.text.slice(0, 12));
   const envEntry = pickEnvironment(reg, v.layout, theme, i);

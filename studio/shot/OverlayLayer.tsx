@@ -45,14 +45,15 @@ export const OverlayLayer: React.FC<{ spec: ShotSpec }> = ({ spec }) => {
       <AbsoluteFill
         style={{
           // 压暗别太重：这一段是整片的暗部，压太狠会把平均亮度拉穿验收下限
-          background: `linear-gradient(to top, rgba(4,7,12,${0.56 * scrim}) 0%, rgba(4,7,12,${0.24 * scrim}) 25%, rgba(4,7,12,0) 42%)`,
+          // 压暗只覆盖下三分之一：底部 22% 留给用户在剪映加的字幕，不在这里压暗
+          background: `linear-gradient(to top, rgba(4,7,12,0) 0%, rgba(4,7,12,${0.2 * scrim}) 18%, rgba(4,7,12,${0.42 * scrim}) 34%, rgba(4,7,12,0) 52%)`,
           pointerEvents: "none",
         }}
       />
       <AbsoluteFill
         style={{
           justifyContent: "flex-end",
-          padding: "0 88px 76px",
+          padding: "0 88px 268px",
           fontFamily: "'Microsoft YaHei', system-ui, sans-serif",
           pointerEvents: "none",
         }}

@@ -274,6 +274,10 @@ function cube(
   });
   const P2 = R.map((w) => project(cam, w));
   if (P2.some((q) => !q)) return;
+  // 近处剔除：立方体贴到镜头前会瞬间撑满画面，造成一次假跳变（实测第 239 帧）。
+  const nearDepth = R.reduce((m, w) => Math.min(m, -w.z + cam.pos.z), Infinity);
+  if (nearDepth < 1.15) return;
+  const nearFade = Math.min(1, (nearDepth - 1.15) / 0.8);
   const faces: [number[], Vec3][] = [
     [[0, 1, 2, 3], { x: 0, y: 0, z: -1 }],
     [[4, 5, 6, 7], { x: 0, y: 0, z: 1 }],
@@ -297,7 +301,7 @@ function cube(
       else g.lineTo(q.x, q.y);
     });
     g.closePath();
-    g.globalAlpha = Math.min(1, Math.max(0, f.shade));
+    g.globalAlpha = Math.min(1, Math.max(0, f.shade)) * nearFade;
     g.fillStyle = base;
     g.fill();
   }

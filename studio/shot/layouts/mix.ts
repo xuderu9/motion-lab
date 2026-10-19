@@ -149,8 +149,8 @@ const mix2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const gap = w * 0.014;
   const cw = (w - mx * 2 - gap * (cols - 1)) / cols;
   const ch = h * 0.36;
-  for (let i = 0; i < cols * 2; i++) {
-    const it = items[i] ?? { title: "", body: "", tag: "" };
+  for (let i = 0; i < cols * 2 && i < items.length; i++) {
+    const it = items[i];
     const ap = Math.max(0, Math.min(1, (t - i * 0.13) / 0.5));
     contentTile(
       g,

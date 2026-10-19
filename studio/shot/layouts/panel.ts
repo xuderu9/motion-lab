@@ -140,7 +140,8 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   const gw = (w - mx * 2 - gap) / cols;
   const gh = h * 0.128;
   const top = h * 0.272;
-  for (let i = 0; i < cols * rows && i < Math.max(items.length, 1); i++) {
+  // 只画有内容的槽位：内容不足 6 张时不要留空卡片（实测会露出白框）
+  for (let i = 0; i < cols * rows && i < items.length; i++) {
     const r = Math.floor(i / cols);
     const col = i % cols;
     const it = items[i] ?? { title: "", body: "", tag: "" };
