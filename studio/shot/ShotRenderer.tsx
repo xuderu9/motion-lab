@@ -25,7 +25,7 @@ export type ShotProps = { spec: ShotSpec };
  * 天生按 size 参数绘制的新版式（M5）。
  * 其余版式按 1600×1200 硬写，整帧模式下走「等比覆盖」适配。
  */
-const SIZE_AWARE = new Set(["title", "stat", "quote", "atmosphere", "page", "panel", "mix"]);
+const SIZE_AWARE = new Set(["title", "stat", "quote", "atmosphere", "page", "panel", "mix", "space"]);
 
 export const ShotRenderer: React.FC<ShotProps> = ({ spec }) => {
   const theme = getTheme(spec.theme);

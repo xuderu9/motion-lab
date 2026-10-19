@@ -161,6 +161,7 @@ export function supportsLayout(layout: string, text: string): boolean {
     case "page":
     case "panel":
     case "mix":
+    case "space":
       return true;
     case "doc":
       return true;

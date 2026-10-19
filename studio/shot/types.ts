@@ -268,7 +268,8 @@ export type LayoutName =
   | "atmosphere"
   | "page"
   | "panel"
-  | "mix";
+  | "mix"
+  | "space";
 
 /** 同版式的第 1/2/3 种**排布**（不是配色） */
 export type Variant = 0 | 1 | 2 | 3 | 4 | 5;

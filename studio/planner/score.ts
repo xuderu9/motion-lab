@@ -39,6 +39,7 @@ export function scoreLayouts(f: Features): ScoreMap {
     page: 0.6,
     panel: 0.6,
     mix: 0.6,
+    space: 0.6,
   };
 }
 
