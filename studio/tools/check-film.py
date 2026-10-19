@@ -164,20 +164,34 @@ def main():
     for c in cuts:
         st = strength(c)
         rows.append((c, round(float(d[c - 1]), 2) if 0 < c <= len(d) else 0.0, round(st, 1)))
-    missing = [r for r in rows if r[2] < 2.5 or r[1] < 2.0]
+
+    # 转场边界：plan 里可选的 transitions 数组（{afterShot, id, frames}）。
+    #
+    # 这些边界本来就是**渐变**，用硬切的标准（帧差尖峰 > 底噪 2.5 倍）去要求它是错的；
+    # 反过来，转场窗口内部的局部极大（模糊峰值、切片抖动）也不该算「多出来的切点」。
+    # 所以这里把「有转场的边界」单独放行，而不是把全局阈值调松 ——
+    # 调松阈值会让真正的漏切也混过去。
+    trans = {int(t["afterShot"]): int(t.get("frames", 14)) for t in (plan.get("transitions") or [])}
+    soft = {cuts[k]: max(8, fr) for k, fr in trans.items() if 0 <= k < len(cuts)}
+
+    def is_soft(f):
+        return any(abs(f - c) <= w for c, w in soft.items())
+
+    missing = [r for r in rows if not is_soft(r[0]) and (r[2] < 2.5 or r[1] < 2.0)]
+    soft_rows = [r for r in rows if is_soft(r[0])]
 
     # 「多出来的切点」：帧差是局部极大、强度 >6、且不在期望切点附近
     extra = []
     for i in range(1, len(d) - 1):
         f = i + 1
         if d[i] > d[i - 1] and d[i] >= d[i + 1] and strength(f) > 6:
-            if not any(abs(c - f) <= C_CUT_TOL_FRAMES for c in cuts):
+            if not any(abs(c - f) <= C_CUT_TOL_FRAMES for c in cuts) and not is_soft(f):
                 extra.append((f, round(float(d[i]), 2), round(strength(f), 1)))
 
     ok4 = not missing and not extra
     res.append(("4 切点吻合", ok4,
-                "期望 %d 个切点；强度不足 %d，多出 %d"
-                % (len(cuts), len(missing), len(extra)),
+                "期望 %d 个切点（其中 %d 个为转场，按渐变放行）；强度不足 %d，多出 %d"
+                % (len(cuts), len(soft_rows), len(missing), len(extra)),
                 {"weak_cuts": missing[:8], "extra": extra[:8], "cuts": rows[:20]}))
 
     # 5 每镜头亮度（报告）
