@@ -27,7 +27,9 @@ import {
   bigNumber,
   serifNote,
   fitText,
+  tileEnter,
 } from "./blocks";
+import { stagger } from "../motion";
 import { SANS, SANS_UI, SERIF_IT, splitHeadline as splitH } from "../typefaces";
 
 const TABS = ["概览", "一 · 背景", "二 · 做法", "三 · 数据", "四 · 结论"];
@@ -60,7 +62,7 @@ const mix0: LayoutDraw = (g, t, content, theme, variant, size) => {
 
   const kv = (c.cards ?? []).slice(0, 4);
   kv.forEach((it, i) => {
-    const ap = Math.max(0, Math.min(1, (t - 0.2 - i * 0.16) / 0.5));
+    const ap = stagger(t, i, { each: 0.16, dur: 0.62, from: 0.2, ease: "ref" });
     labelValueRow(g, it.tag || `0${i + 1}`, it.value || it.body || it.title, mx, h * (0.42 + i * 0.115), maxHeadW, h, p, ap);
   });
 
@@ -69,8 +71,10 @@ const mix0: LayoutDraw = (g, t, content, theme, variant, size) => {
   const cw = (w - splitX - mx - gap) / 2;
   const ch = h * 0.28;
   grid.forEach((it, i) => {
-    const ap = Math.max(0, Math.min(1, (t - 0.35 - i * 0.14) / 0.55));
-    contentTile(g, it, splitX + (i % 2) * (cw + gap), h * 0.3 + Math.floor(i / 2) * (ch + gap), cw, ch, p, i === 0, (1 - ap) * h * 0.02);
+    const u = stagger(t, i, { each: 0.14, dur: 0.68, from: 0.35, ease: "ref" });
+    const tx = splitX + (i % 2) * (cw + gap);
+    const ty = h * 0.3 + Math.floor(i / 2) * (ch + gap);
+    contentTile(g, it, tx, ty, cw, ch, p, i === 0, 0, tileEnter(tx, ty, cw, ch, u, i + 11), i);
   });
 
   g.fillStyle = p.line;
@@ -102,7 +106,7 @@ const mix1: LayoutDraw = (g, t, content, theme, variant, size) => {
   const x0 = railW + w * 0.05;
   const rows = (c.cards ?? []).slice(0, 2);
   rows.forEach((it, i) => {
-    const ap = Math.max(0, Math.min(1, (t - i * 0.3) / 0.6));
+    const ap = stagger(t, i, { each: 0.26, dur: 0.72, from: 0, ease: "ref" });
     const y = h * (0.16 + i * 0.42);
     g.globalAlpha = ap;
     g.fillStyle = p.accent;
@@ -131,6 +135,13 @@ const mix2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const p = palette(theme);
   paperBg(g, w, h, p, t);
   const mx = w * 0.05;
+
+  const items = (c.cards ?? []).slice(0, 6);
+  const cols = 3;
+  // 行数跟着内容走：只有 3 条时不要留一个空的下半屏。
+  // 之前固定 3×2，而 plan 里每条内容基本只有 3 张卡，于是下半屏永远是空的。
+  const rows = items.length > cols ? 2 : 1;
+
   // 标题压成一行小字
   g.fillStyle = p.text;
   g.font = `800 ${Math.round(h * 0.038)}px ${SANS}`;
@@ -141,28 +152,24 @@ const mix2: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.fillStyle = p.faint;
   g.font = `600 ${Math.round(h * 0.017)}px ${SANS_UI}`;
   g.textAlign = "right";
-  g.fillText("GRID · 3 × 2", w - mx, h * 0.085);
+  g.fillText(`GRID · ${cols} × ${rows}`, w - mx, h * 0.085);
   g.textAlign = "start";
 
-  const items = (c.cards ?? []).slice(0, 6);
-  const cols = 3;
   const gap = w * 0.014;
   const cw = (w - mx * 2 - gap * (cols - 1)) / cols;
-  const ch = h * 0.36;
-  for (let i = 0; i < cols * 2 && i < items.length; i++) {
+  const areaTop = h * 0.145;
+  const areaBottom = h * 0.94;
+  // 单行时不要把卡片拉满整屏：卡里内容撑不满会留下一个大空块。
+  // 限高并在内容区里垂直居中，留白就落在上下，读起来是有意的。
+  const ch = rows === 2 ? (areaBottom - areaTop - gap) / 2 : Math.min(areaBottom - areaTop, cw * 1.12);
+  const top = rows === 2 ? areaTop : areaTop + (areaBottom - areaTop - ch) / 2;
+
+  for (let i = 0; i < rows * cols && i < items.length; i++) {
     const it = items[i];
-    const ap = Math.max(0, Math.min(1, (t - i * 0.13) / 0.5));
-    contentTile(
-      g,
-      it,
-      mx + (i % cols) * (cw + gap),
-      h * 0.16 + Math.floor(i / cols) * (ch + gap),
-      cw,
-      ch,
-      p,
-      i === 0,
-      (1 - ap) * h * 0.026,
-    );
+    const u = stagger(t, i, { each: 0.115, dur: 0.64, from: 0, ease: "ref" });
+    const tx = mx + (i % cols) * (cw + gap);
+    const ty = top + Math.floor(i / cols) * (ch + gap);
+    contentTile(g, it, tx, ty, cw, ch, p, i === 0, 0, tileEnter(tx, ty, cw, ch, u, i + 31), i);
   }
 };
 
@@ -197,7 +204,7 @@ const mix3: LayoutDraw = (g, t, content, theme, variant, size) => {
   ];
   notes.forEach((n, i) => {
     const [x, y, al] = spots[i];
-    const ap = Math.max(0, Math.min(1, (t - 0.3 - i * 0.18) / 0.5));
+    const ap = stagger(t, i, { each: 0.18, dur: 0.6, from: 0.3, ease: "ref" });
     g.globalAlpha = ap;
     g.textAlign = al;
     g.fillStyle = p.faint;
@@ -241,8 +248,10 @@ const mix4: LayoutDraw = (g, t, content, theme, variant, size) => {
   const cw = (w - mx * 2 - gap * 2) / 3;
   const ch = h * 0.245;
   items.forEach((it, i) => {
-    const ap = Math.max(0, Math.min(1, (t - 0.25 - i * 0.16) / 0.55));
-    contentTile(g, it, mx + i * (cw + gap), topH + h * 0.06 + (1 - ap) * h * 0.03, cw, ch, p, false, 0);
+    const u = stagger(t, i, { each: 0.16, dur: 0.66, from: 0.25, ease: "ref" });
+    const tx = mx + i * (cw + gap);
+    const ty = topH + h * 0.06;
+    contentTile(g, it, tx, ty, cw, ch, p, false, 0, tileEnter(tx, ty, cw, ch, u, i + 51), i);
   });
 };
 
@@ -272,18 +281,10 @@ const mix5: LayoutDraw = (g, t, content, theme, variant, size) => {
   const cw = w * 0.3;
   const ch = h * 0.22;
   items.forEach((it, i) => {
-    const ap = Math.max(0, Math.min(1, (t - 0.3 - i * 0.2) / 0.55));
-    contentTile(
-      g,
-      it,
-      w * 0.42 + i * (w * 0.17),
-      h * 0.37 + i * (h * 0.175),
-      cw,
-      ch,
-      p,
-      i === 1,
-      (1 - ap) * h * 0.026,
-    );
+    const u = stagger(t, i, { each: 0.22, dur: 0.7, from: 0.3, ease: "ref" });
+    const tx = w * 0.42 + i * (w * 0.17);
+    const ty = h * 0.37 + i * (h * 0.175);
+    contentTile(g, it, tx, ty, cw, ch, p, i === 1, 0, tileEnter(tx, ty, cw, ch, u, i + 71, { bow: 0.24 }), i);
     g.globalAlpha = 1;
   });
 

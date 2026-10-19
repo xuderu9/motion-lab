@@ -15,6 +15,10 @@
 
 import type { CardsContent, LayoutDraw, Theme } from "../types";
 import { SANS, SANS_UI, spacedText, mixedHeadline } from "../typefaces";
+import { cardBg, palette, imgFor, type Palette } from "./blocks";
+import { drawImageCover } from "../assets";
+import { wrapLines } from "../chrome";
+import { stagger } from "../motion";
 
 const C = {
   paper: "#f5f0eb",
@@ -34,15 +38,15 @@ function fitText(g: CanvasRenderingContext2D, text: string, maxW: number): strin
   return out + "…";
 }
 
-function paper(g: CanvasRenderingContext2D, w: number, h: number, t: number) {
+function paper(g: CanvasRenderingContext2D, w: number, h: number, _t = 0) {
   g.fillStyle = C.paper;
   g.fillRect(0, 0, w, h);
-  // 点阵网格：极淡，缓慢平移（常驻微动）
+  // 点阵网格：静态印刷纹理。
+  // 以前是 `off = (t*6)%step` 让它一直爬 —— 那是拿漂移凑帧差，已按规矩去掉。
   const step = Math.round(h * 0.018);
-  const off = (t * 6) % step;
   g.fillStyle = "rgba(26,26,26,0.045)";
-  for (let y = off; y < h; y += step) {
-    for (let x = off; x < w; x += step) g.fillRect(x, y, 1.4, 1.4);
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) g.fillRect(x, y, 1.4, 1.4);
   }
 }
 
@@ -61,6 +65,21 @@ function topBar(g: CanvasRenderingContext2D, w: number, h: number, left: string,
   g.textAlign = "start";
 }
 
+/** panel 版式自己的调色板：沿用这页的暖白 + 橙，但走 cardBg 统一的分级投影与双层描边 */
+function panelPalette(theme: Theme): Palette {
+  return {
+    ...palette(theme),
+    paper: C.paper,
+    card: C.card,
+    text: C.ink,
+    dim: C.meta,
+    faint: C.meta,
+    line: C.line,
+    accent: C.accent,
+    isLight: true,
+  };
+}
+
 /** 一张内容卡：粗标题 + 粗副行 + 灰色元信息 */
 function contentCard(
   g: CanvasRenderingContext2D,
@@ -74,32 +93,71 @@ function contentCard(
   hot: boolean,
   theme: Theme,
   rise: number,
+  imgIdx = 0,
 ) {
   g.save();
   g.translate(0, rise);
-  const r = h * 0.075;
-  g.beginPath();
-  g.roundRect(x, y, w, h, r);
-  g.fillStyle = hot ? C.accentSoft : C.card;
-  g.fill();
-  g.lineWidth = hot ? 2 : 1;
-  g.strokeStyle = hot ? C.accent : C.line;
-  g.stroke();
+  const p = panelPalette(theme);
+  cardBg(g, x, y, w, h, p, hot, 0.075);
 
-  const pad = w * 0.045;
+  const pad = Math.max(14, w * 0.045);
+  // 字号跟卡宽走，不跟卡高走 —— 否则卡片高度一变，字号就失控
+  const tSize = Math.max(15, Math.min(54, Math.round(w * 0.058)));
+  const sSize = Math.max(12, Math.min(32, Math.round(w * 0.034)));
+  const mSize = Math.max(11, Math.min(26, Math.round(w * 0.029)));
+
   g.textBaseline = "alphabetic";
+  // 右上角标签：先量宽度，正文要让开它
+  let tagW = 0;
+  if (meta) {
+    g.font = `700 ${mSize}px ${SANS_UI}`;
+    tagW = g.measureText(meta).width + mSize * 1.6;
+  }
+  const lines = wrapLines(g, title, w - pad * 2, tSize, 800, 2);
+  const top = y + pad + tSize * 0.92;
   g.fillStyle = hot ? C.accent : C.ink;
-  g.font = `800 ${Math.round(h * 0.2)}px ${SANS}`;
-  g.fillText(fitText(g, title, w - pad * 2), x + pad, y + h * 0.36);
+  g.font = `800 ${tSize}px ${SANS}`;
+  lines.forEach((ln, i) => g.fillText(ln, x + pad, top + i * tSize * 1.2));
 
-  g.fillStyle = C.ink;
-  g.font = `700 ${Math.round(h * 0.108)}px ${SANS_UI}`;
-  g.fillText(fitText(g, sub, w - pad * 2), x + pad, y + h * 0.62);
+  let cursor = top + (lines.length - 1) * tSize * 1.2;
+  if (sub) {
+    g.fillStyle = C.ink;
+    g.font = `700 ${sSize}px ${SANS_UI}`;
+    const sl = wrapLines(g, sub, w - pad * 2, sSize, 700, 2);
+    sl.forEach((ln, i) => g.fillText(ln, x + pad, cursor + sSize * 1.75 + i * sSize * 1.32));
+    cursor += sSize * 1.75 + (sl.length - 1) * sSize * 1.32;
+  }
 
-  g.fillStyle = C.meta;
-  g.font = `400 ${Math.round(h * 0.092)}px ${SANS_UI}`;
-  g.fillText(fitText(g, meta, w - pad * 2), x + pad, y + h * 0.82);
-  void theme;
+  // 底部配图带：卡片空着的那半张，用一张真图填掉。
+  // 纯文字的卡片在 1080p 上会显得「像表单」，加一条图之后才像参考片里的卡片。
+  const imgH = Math.min(h * 0.42, (y + h - pad) - (cursor + tSize * 0.5));
+  if (imgH > h * 0.16) {
+    const imgY = y + h - pad - imgH;
+    drawImageCover(g, imgFor(title, imgIdx), x + pad, imgY, w - pad * 2, imgH, Math.min(18, h * 0.05));
+    if (hot) {
+      g.save();
+      g.globalCompositeOperation = "multiply";
+      g.fillStyle = "rgba(217,84,43,0.16)";
+      g.beginPath();
+      g.roundRect(x + pad, imgY, w - pad * 2, imgH, Math.min(18, h * 0.05));
+      g.fill();
+      g.restore();
+    }
+  }
+
+  if (meta && tagW > 0) {
+    const tagX = x + w - pad - tagW;
+    const tagY = y + pad * 0.92;
+    g.fillStyle = hot ? C.accentSoft : "rgba(26,26,26,0.055)";
+    g.beginPath();
+    g.roundRect(tagX, tagY, tagW, mSize * 1.7, mSize * 0.85);
+    g.fill();
+    g.fillStyle = hot ? C.accent : C.meta;
+    g.font = `700 ${mSize}px ${SANS_UI}`;
+    g.textAlign = "center";
+    g.fillText(meta, tagX + tagW / 2, tagY + mSize * 1.18);
+    g.textAlign = "start";
+  }
   g.restore();
 }
 
@@ -132,25 +190,29 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
     g.fillText(fitText(g, c.subtitle, w - mx * 2), mx, h * 0.235);
   }
 
-  // 2 × 3 卡片网格
+  // 卡片网格：**列数跟着卡片数量走**。
+  // 以前固定 2×3，而 plan 里多数镜头只有 3 张卡 —— 第二行永远空一半，
+  // 成片里就是一个大洞。现在 3 张就排成一行三列，4 张 2×2，5~6 张 3×2。
   const items = (c.cards ?? []).slice(0, 6);
-  const cols = 2;
-  const rows = 3;
+  const n = Math.max(1, items.length);
+  const cols = n <= 3 ? 3 : n === 4 ? 2 : 3;
+  const rows = Math.ceil(n / cols);
   const gap = w * 0.014;
-  const gw = (w - mx * 2 - gap) / cols;
-  const gh = h * 0.128;
-  const top = h * 0.272;
-  // 只画有内容的槽位：内容不足 6 张时不要留空卡片（实测会露出白框）
-  for (let i = 0; i < cols * rows && i < items.length; i++) {
+  const gapY = h * 0.016;
+  const gw = (w - mx * 2 - gap * (cols - 1)) / cols;
+  const areaTop = h * 0.272;
+  const areaBottom = h * 0.625;
+  const gh = (areaBottom - areaTop - gapY * (rows - 1)) / rows;
+  for (let i = 0; i < n; i++) {
     const r = Math.floor(i / cols);
     const col = i % cols;
     const it = items[i] ?? { title: "", body: "", tag: "" };
-    const appear = Math.max(0, Math.min(1, (t - i * 0.22) / 0.55));
-    const rise = (1 - appear) * h * 0.022;
+    const appear = stagger(t, i, { each: 0.22, dur: 0.58, from: 0, ease: "snap" });
+    const rise = (1 - appear) * h * 0.026;
     contentCard(
       g,
       mx + col * (gw + gap),
-      top + r * (gh + h * 0.016),
+      areaTop + r * (gh + gapY),
       gw,
       gh,
       it.title || `项目 ${i + 1}`,
@@ -159,6 +221,7 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
       i === 0,
       theme,
       rise,
+      i,
     );
   }
 

@@ -98,9 +98,11 @@ function card(
   const t3 = cardTransform(cam, pos, rx, ry, { w: CW, h: CH }, roll);
   if (!t3) return;
   // 近处剔除：卡片掠过镜头时会放大成一大块色斑，很难看。
-  // 在 1.0~1.9 之间淡出，1.0 以内直接不画。
-  if (t3.depth < 1.0) return;
-  const nearFade = Math.min(1, (t3.depth - 1.0) / 0.9);
+  // 阈值从 1.0 提到 2.0：深度 1.0 的卡片在 1080p 上会占掉半个屏幕，
+  // 标题被裁成一截（实测「我们来拆一下」整块糊在右下角）。
+  // 2.0 以外才画，2.0~2.9 之间淡入，画面里始终是「一排排卡片」而不是「一两张巨卡」。
+  if (t3.depth < 1.35) return;
+  const nearFade = Math.min(1, (t3.depth - 1.35) / 0.8);
   const alpha = fog(t3.depth, 1.9, 18) * nearFade;
   if (alpha <= 0.04) return;
   const s = t3.shade;
@@ -108,6 +110,13 @@ function card(
   g.save();
   g.setTransform(t3.a, t3.b, t3.c, t3.d, t3.x, t3.y);
   g.globalAlpha = alpha;
+
+  // 景深：远处的卡片按真实纵深糊掉。
+  // 这比「手工把远处的卡画小一点、透明一点」有用得多 —— 人眼判断空间感，
+  // 第一依据是清晰度差，不是尺寸差。焦距设在 depth≈5，更远的才开始糊，上限 4px
+  // （超过 4px 在 1080p 上会糊成一片雾，反而不像镜头）。
+  const blur = t3.depth > 5 ? Math.min(4, (t3.depth - 5) * 0.22) : 0;
+  if (blur > 0.4) g.filter = `blur(${blur.toFixed(2)}px)`;
 
   // 卡片底：按明暗混出颜色（不写死色值，靠 globalAlpha 叠加）
   const r = 0.055;
@@ -131,15 +140,17 @@ function card(
   const pad = 0.06;
   g.textBaseline = "alphabetic";
   g.fillStyle = p.accent;
-  g.font = `800 ${0.13}px ${SANS}`;
-  g.fillText(fitText(g, title, CW - pad * 2), -CW / 2 + pad, -CH / 2 + pad + 0.12);
+  // 0.13 → 0.092：卡宽只有 1.0 个世界单位，0.13 的字一行只放 6 个字，
+  // 成片里所有标题都被截成「步改变的是…」。
+  g.font = `800 ${0.092}px ${SANS}`;
+  g.fillText(fitText(g, title, CW - pad * 2), -CW / 2 + pad, -CH / 2 + pad + 0.1);
   if (value) {
     g.fillStyle = p.text;
-    g.font = `900 ${0.22}px ${SANS}`;
-    g.fillText(fitText(g, value, CW - pad * 2), -CW / 2 + pad, -CH / 2 + pad + 0.36);
+    g.font = `900 ${0.18}px ${SANS}`;
+    g.fillText(fitText(g, value, CW - pad * 2), -CW / 2 + pad, -CH / 2 + pad + 0.33);
   }
   g.fillStyle = p.dim;
-  g.font = `600 ${0.062}px ${SANS_UI}`;
+  g.font = `600 ${0.058}px ${SANS_UI}`;
   g.fillText(fitText(g, tag, CW - pad * 2), -CW / 2 + pad, CH / 2 - pad);
   g.restore();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -321,16 +332,18 @@ const space0: LayoutDraw = (g, t, content, theme, variant, size) => {
   floorGrid(g, cam, p, t);
 
   const items = c.cards ?? [];
-  const n = Math.max(6, items.length);
-  const LEN = 9.5;
+  // 密度：6 张卡在 1080p 上撑不成「走廊」，只会像两个孤零零的方块。
+  // 16 张 + 更密的间距，才有成排后退的纵深。
+  const n = Math.max(16, items.length * 4);
+  const LEN = 16;
   const list: { pos: Vec3; rx: number; ry: number; roll: number; it: (typeof items)[number]; i: number }[] = [];
   for (let i = 0; i < n; i++) {
     // 世界固定、相机前进；循环补位让卡片持续从远处进来
     const span = LEN;
-    const z = -1.4 - (((i * span) / n - fly) % span + span) % span;
+    const z = -1.0 - (((i * span) / n - fly) % span + span) % span;
     const side = i % 2 === 0 ? 1 : -1;
     list.push({
-      pos: { x: side * (0.95 + (i % 3) * 0.34), y: -0.14 + ((i * 7) % 5) * 0.14, z },
+      pos: { x: side * (0.62 + (i % 3) * 0.3), y: -0.2 + ((i * 7) % 5) * 0.16, z },
       rx: 0,
       ry: side * -0.55,
       roll: side * 0.06,

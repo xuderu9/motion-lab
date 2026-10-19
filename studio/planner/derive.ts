@@ -111,18 +111,46 @@ function buildDoc(text: string): DocContent {
   };
 }
 
+/**
+ * 把一句话拆成「卡片标题 + 卡片正文」。
+ *
+ * 这里以前是 `title: titleOf(s, 10)` —— 取前 10 个字加省略号。
+ * 结果是卡片上写着「从这一刻起，它不再是…」，正文又是同一句话的全文，
+ * 标题既读不通、又和正文重复。成片里一眼就能看出来。
+ *
+ * 现在改成在**标点处**断：前半句够短就当标题，后半句当正文，两边不重复。
+ */
+const CARD_BREAK = /[，,、：:；;]/;
+
+function cardHead(s: string): { title: string; body: string } {
+  const chars = Array.from(s.replace(/[。！？!?]+$/, ""));
+  const idx = chars.findIndex((c) => CARD_BREAK.test(c));
+  if (idx >= 3 && idx <= 18) {
+    const title = chars.slice(0, idx).join("");
+    const body = chars.slice(idx + 1).join("").trim();
+    if (Array.from(body).length >= 4) return { title, body };
+    return { title: chars.join(""), body: "" };
+  }
+  // 没有合适的断点：整句当标题，最多 24 字（版式会折两行，不会硬切）
+  return { title: chars.slice(0, 24).join(""), body: "" };
+}
+
 function buildCards(text: string, warn: (k: string, d: string) => void): CardsContent {
   let items = extractEnumerations(text);
   if (items.length < 3) {
     items = sentences(text);
     if (items.length < 3) warn("cards.cards", `只切出 ${items.length} 张卡片，按句子硬拆`);
   }
-  const cards = items.slice(0, 6).map((s, i) => ({
-    title: titleOf(s, 10),
-    body: Array.from(s).slice(0, 34).join(""),
-    tag: ["要点", "细节", "补充", "结论", "备注", "延伸"][i % 6],
-    value: String(i + 1),
-  }));
+  const cards = items.slice(0, 6).map((s, i) => {
+    const h = cardHead(s);
+    return {
+      title: h.title,
+      body: h.body,
+      tag: ["要点", "细节", "补充", "结论", "备注", "延伸"][i % 6],
+      // 序号不再当 value 显示：卡片上「1 · 正文」既冗余又容易被误读成数据
+      value: "",
+    };
+  });
   return { kind: "cards", heading: titleOf(text), subtitle: firstSentence(text, 22), cards, tags: cards.map((c) => c.tag) };
 }
 

@@ -10,12 +10,15 @@
 import type { CardsContent, Theme } from "../types";
 import { SANS, SANS_UI, SERIF_IT, spacedText, mixedHeadline } from "../typefaces";
 import { drawImageCover, CARD_IMAGES } from "../assets";
+import { paperNoise } from "../post";
+import { motionBlur, clamp01, lerp, rnd, enterPath, velocityOf } from "../motion";
+import { ellipsize, wrapLines } from "../chrome";
 
-/** 用标题做种子挑一张配图，保证同一张卡每帧一致 */
-function imgFor(key: string): string {
+/** 用标题做种子挑一张配图，保证同一张卡每帧一致；idx 用来**错开同屏卡片**，避免两张卡撞同一张图 */
+export function imgFor(key: string, idx = 0): string {
   let h2 = 0;
   for (const ch of key) h2 = (h2 * 31 + ch.charCodeAt(0)) >>> 0;
-  return CARD_IMAGES[h2 % CARD_IMAGES.length];
+  return CARD_IMAGES[(h2 + idx) % CARD_IMAGES.length];
 }
 
 export const INK = {
@@ -43,11 +46,13 @@ export type Palette = {
   faint: string;
   line: string;
   accent: string;
+  /** 这个调色板属于亮底还是暗底。cardBg 的投影/内高光方向依赖它。 */
+  isLight?: boolean;
 };
 
 export function palette(theme: Theme): Palette {
   return theme.isLight
-    ? { paper: INK.paper, card: INK.card, text: INK.text, dim: INK.dim, faint: INK.faint, line: INK.line, accent: INK.accent }
+    ? { paper: INK.paper, card: INK.card, text: INK.text, dim: INK.dim, faint: INK.faint, line: INK.line, accent: INK.accent, isLight: true }
     : {
         paper: INK.inkPaper,
         card: INK.inkCard,
@@ -56,6 +61,7 @@ export function palette(theme: Theme): Palette {
         faint: "rgba(226,234,246,0.36)",
         line: INK.inkLine,
         accent: "#ff7043",
+        isLight: false,
       };
 }
 
@@ -69,21 +75,25 @@ export function fitText(g: CanvasRenderingContext2D, text: string, maxW: number)
 /**
  * 纸张底：暖白/墨黑 + 极淡的横纹 + 轻晕影。
  * 这是「我们的底」，和参考片那种纯平白不一样，也是防撞脸的第一层。
+ *
+ * ⚠️ 横纹**不再随 t 漂移**。以前的写法是 `off = (t*3)%step`，用一条永远在爬的
+ * 纹理给整屏凑帧差 —— 这正是用户明令禁止的那类「拿呼吸/漂移当运动」的手法。
+ * 纸不会动，动的是纸上的东西。参数 t 保留只为兼容旧调用点。
  */
-export function paperBg(g: CanvasRenderingContext2D, w: number, h: number, p: Palette, t: number) {
+export function paperBg(g: CanvasRenderingContext2D, w: number, h: number, p: Palette, _t = 0) {
   const grd = g.createLinearGradient(0, 0, w * 0.35, h);
   grd.addColorStop(0, p.paper);
-  grd.addColorStop(1, shade(p.paper, p === palette({ isLight: true } as Theme) ? -0.035 : 0.05));
+  grd.addColorStop(1, shade(p.paper, p.isLight === false ? 0.05 : -0.035));
   g.fillStyle = grd;
   g.fillRect(0, 0, w, h);
 
-  // 横纹：每 4.2% 画一条 1px 线，透明度 3%，缓慢上移（常驻微动）
+  // 横纹：静态印刷纹理
   const step = Math.round(h * 0.042);
-  const off = (t * 3) % step;
+  g.save();
   g.fillStyle = p.line;
-  g.globalAlpha = 0.28;
-  for (let y = -step + off; y < h + step; y += step) g.fillRect(0, y, w, 1);
-  g.globalAlpha = 1;
+  g.globalAlpha = 0.26;
+  for (let y = 0; y < h + step; y += step) g.fillRect(0, y, w, 1);
+  g.restore();
 
   // 角落晕影，避免整片死平
   const vg = g.createRadialGradient(w * 0.5, h * 0.42, Math.min(w, h) * 0.2, w * 0.5, h * 0.5, Math.max(w, h) * 0.78);
@@ -115,7 +125,10 @@ export function chapterBar(
   heightPct = 0.042,
 ) {
   const bh = h * heightPct;
-  g.fillStyle = p === palette({ isLight: true } as Theme) ? "rgba(24,26,28,0.045)" : "rgba(255,255,255,0.05)";
+  // 注意：这里以前写的是 `p === palette({isLight:true} as Theme)`。
+  // palette() 每次返回**新对象**，恒等比较永远是 false，所以亮底也会走暗底分支。
+  // 改成读 p.isLight。
+  g.fillStyle = p.isLight ? "rgba(24,26,28,0.045)" : "rgba(255,255,255,0.05)";
   g.fillRect(0, 0, w, bh);
   g.font = `600 ${Math.round(h * 0.0165)}px ${SANS_UI}`;
   g.textBaseline = "middle";
@@ -196,7 +209,22 @@ export function subhead(
   g.fillText(fitText(g, text, maxW), x, y);
 }
 
-/** 圆角卡片底 */
+/**
+ * 圆角卡片底 —— 「精致度」的全部来源都在这里。
+ *
+ * 之前的版本是一层平涂 + 一条 1px 描边，所以在成片里卡片看着像贴在纸上的色块。
+ * 真实界面上，一张卡片之所以「有厚度」，靠的是下面这几层叠出来的：
+ *
+ *   1. 环境投影（大、软、偏下）—— 卡片离开纸面的距离
+ *   2. 接触投影（小、硬、贴边）—— 卡片和纸面的接触
+ *   3. 面填充（极轻的竖向渐变）—— 受光面
+ *   4. 顶部内高光 1px      —— 边缘的受光
+ *   5. 底部内阴影（渐变）   —— 边缘的背光，和 4 一起构成「厚度」
+ *   6. 双层描边（外 hairline + 内 1px 亮线）—— 这是 Apple 系界面的标志性做法
+ *   7. 静态纸噪点 —— 去掉「矢量色块」的塑料感
+ *
+ * 全部是静态的：卡片本身不呼吸，动的是卡片的位置和内容。
+ */
 export function cardBg(
   g: CanvasRenderingContext2D,
   x: number,
@@ -206,32 +234,135 @@ export function cardBg(
   p: Palette,
   hot = false,
   radiusPct = 0.072,
+  o: { grain?: number; shadow?: number; radius?: number } = {},
 ) {
-  const r = h * radiusPct;
-  g.beginPath();
-  g.roundRect(x, y, w, h, r);
-  g.fillStyle = hot ? p.accent + "" : p.card;
-  if (hot) {
+  const r = o.radius ?? Math.max(4, Math.min(h * radiusPct, Math.min(w, h) / 2));
+  const light = p.isLight !== false;
+  const shadowK = o.shadow ?? 1;
+
+  // ── 1+2. 两级投影：先画环境投影，再画接触投影 ──────────────────────
+  if (shadowK > 0) {
     g.save();
-    g.globalAlpha = 0.12;
-    g.fillStyle = p.accent;
-    g.fill();
-    g.restore();
+    g.shadowColor = light ? `rgba(28,26,22,${0.13 * shadowK})` : `rgba(0,0,0,${0.42 * shadowK})`;
+    g.shadowBlur = h * 0.30 * shadowK;
+    g.shadowOffsetY = h * 0.085 * shadowK;
+    g.fillStyle = light ? "#ffffff" : "rgba(255,255,255,0.05)";
     g.beginPath();
     g.roundRect(x, y, w, h, r);
-    g.fillStyle = "rgba(255,255,255,0.35)";
     g.fill();
-  } else {
+
+    g.shadowColor = light ? `rgba(28,26,22,${0.10 * shadowK})` : `rgba(0,0,0,${0.34 * shadowK})`;
+    g.shadowBlur = h * 0.045 * shadowK;
+    g.shadowOffsetY = h * 0.012 * shadowK;
+    g.beginPath();
+    g.roundRect(x, y, w, h, r);
     g.fill();
+    g.restore();
   }
-  g.strokeStyle = hot ? p.accent : p.line;
-  g.lineWidth = hot ? 2 : 1;
+
+  // ── 3. 面填充：极轻的竖向渐变（上亮下暗 = 受光面） ──────────────────
+  const base = light ? p.card : "rgba(255,255,255,0.055)";
+  const face = g.createLinearGradient(0, y, 0, y + h);
+  if (light) {
+    face.addColorStop(0, "#ffffff");
+    face.addColorStop(0.55, "#fdfcfa");
+    face.addColorStop(1, "#f6f4f0");
+  } else {
+    face.addColorStop(0, "rgba(255,255,255,0.085)");
+    face.addColorStop(1, "rgba(255,255,255,0.028)");
+  }
   g.beginPath();
   g.roundRect(x, y, w, h, r);
+  g.fillStyle = hot ? (light ? "#fff8f4" : "rgba(255,120,70,0.10)") : base;
+  g.fill();
+  g.fillStyle = face;
+  g.beginPath();
+  g.roundRect(x, y, w, h, r);
+  g.fill();
+
+  // ── 4~6. 内层：全部裁剪在卡片内 ────────────────────────────────
+  g.save();
+  g.beginPath();
+  g.roundRect(x, y, w, h, r);
+  g.clip();
+
+  // 顶部内高光
+  g.fillStyle = light ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.16)";
+  g.fillRect(x + r * 0.4, y + 0.5, w - r * 0.8, 1);
+
+  // 底部内阴影
+  const inner = h * 0.16;
+  const ig = g.createLinearGradient(0, y + h - inner, 0, y + h);
+  ig.addColorStop(0, "rgba(0,0,0,0)");
+  ig.addColorStop(1, light ? "rgba(28,26,22,0.055)" : "rgba(0,0,0,0.22)");
+  g.fillStyle = ig;
+  g.fillRect(x, y + h - inner, w, inner);
+
+  // 高亮卡：左上角一片暖光，而不是整块染成橙色
+  if (hot) {
+    const hg = g.createRadialGradient(x + w * 0.12, y, 0, x + w * 0.12, y, w * 0.9);
+    hg.addColorStop(0, light ? "rgba(217,84,43,0.13)" : "rgba(255,112,67,0.16)");
+    hg.addColorStop(1, "rgba(217,84,43,0)");
+    g.fillStyle = hg;
+    g.fillRect(x, y, w, h);
+  }
+
+  // 纸噪点：静态纹理，去掉塑料感
+  paperNoise(g, x, y, w, h, o.grain ?? (light ? 0.05 : 0.08), 7);
+
+  g.restore();
+
+  // ── 7. 双层描边 ──────────────────────────────────────────────
+  // 外层：压在纸面上的细线
+  g.strokeStyle = hot
+    ? light
+      ? "rgba(217,84,43,0.42)"
+      : "rgba(255,112,67,0.5)"
+    : light
+      ? "rgba(28,26,22,0.10)"
+      : "rgba(255,255,255,0.13)";
+  g.lineWidth = 1;
+  g.beginPath();
+  g.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, r);
   g.stroke();
+
+  // 内层：1px 内侧的亮线（跟着圆角走，所以不能用 fillRect）
+  g.strokeStyle = light ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.10)";
+  g.lineWidth = 1;
+  g.beginPath();
+  g.roundRect(x + 1.5, y + 1.5, w - 3, h - 3, Math.max(2, r - 1));
+  g.stroke();
+
+  // 高亮卡再加一条左侧强调竖条
+  if (hot) {
+    g.save();
+    g.beginPath();
+    g.roundRect(x, y, w, h, r);
+    g.clip();
+    g.fillStyle = p.accent;
+    g.fillRect(x, y + h * 0.18, Math.max(3, h * 0.012), h * 0.64);
+    g.restore();
+  }
 }
 
-/** 内容卡：粗标题 + 粗副行 + 灰元信息 */
+/** 卡片的入场姿态。dx/dy = 相对落位的偏移，vx/vy = 瞬时速度（驱动运动模糊） */
+export type TilePose = {
+  dx?: number;
+  dy?: number;
+  scale?: number;
+  rot?: number;
+  alpha?: number;
+  vx?: number;
+  vy?: number;
+};
+
+/**
+ * 内容卡：粗标题 + 粗副行 + 灰元信息。
+ *
+ * 入场不再走 `rise`（一条直线往上浮），而是吃一个 TilePose：
+ * 位移由 motion.ts 的贝塞尔路径给出，所以卡片是**沿弧线**落位的；
+ * 速度超过阈值时自动叠方向性运动模糊 —— 这是「丝滑」和「帧不够」的分界。
+ */
 export function contentTile(
   g: CanvasRenderingContext2D,
   it: { title?: string; body?: string; tag?: string; value?: string },
@@ -242,37 +373,72 @@ export function contentTile(
   p: Palette,
   hot = false,
   rise = 0,
+  pose?: TilePose,
+  imgIndex = 0,
 ) {
-  g.save();
-  g.translate(0, rise);
-  cardBg(g, x, y, w, h, p, hot);
-  const pad = w * 0.042;
-  // 卡片上半部放一张真实配图（即梦生成），下半部才是文字。
-  // 之前整张卡只有文字，视觉上很「文档」；加了图之后才像参考片里的卡片。
-  const imgH = h * 0.46;
-  drawImageCover(g, imgFor(it.title ?? it.body ?? ""), x + pad, y + pad, w - pad * 2, imgH, h * 0.03);
-  // 图片下沿压一层渐变，避免文字贴图边发脏
-  const grd = g.createLinearGradient(0, y + imgH * 0.55, 0, y + pad + imgH);
-  grd.addColorStop(0, "rgba(0,0,0,0)");
-  grd.addColorStop(1, hot ? "rgba(217,84,43,0.20)" : "rgba(0,0,0,0.06)");
-  g.fillStyle = grd;
-  g.fillRect(x + pad, y + imgH * 0.55, w - pad * 2, imgH * 0.45);
+  const body = () => {
+    cardBg(g, x, y, w, h, p, hot);
+    const pad = Math.round(w * 0.045);
+    // 字号跟着**卡片宽度**走，不跟高度走。
+    // 跟高度走曾导致竖长卡片上标题有 94px —— 一行只放得下 5 个字，全被截断。
+    const titleSize = Math.max(22, Math.min(72, Math.round(w * 0.082)));
+    const metaSize = Math.max(14, Math.min(34, Math.round(w * 0.042)));
+    const tagSize = Math.max(12, Math.min(30, Math.round(w * 0.036)));
+    const lineH = titleSize * 1.18;
 
-  const ty = y + pad + imgH + h * 0.05;
-  g.textBaseline = "alphabetic";
-  g.fillStyle = hot ? p.accent : p.text;
-  g.font = `800 ${Math.round(h * 0.135)}px ${SANS}`;
-  g.fillText(fitText(g, it.title ?? "", w - pad * 2), x + pad, ty + h * 0.11);
-  g.fillStyle = p.dim;
-  g.font = `600 ${Math.round(h * 0.088)}px ${SANS_UI}`;
-  g.fillText(
-    fitText(g, it.value ? `${it.value} · ${it.body ?? ""}` : it.body ?? "", w - pad * 2),
-    x + pad,
-    ty + h * 0.20,
-  );
-  g.fillStyle = p.faint;
-  g.font = `400 ${Math.round(h * 0.072)}px ${SANS_UI}`;
-  g.fillText(fitText(g, it.tag ?? "", w - pad * 2), x + pad, y + h - pad * 0.9);
+    const imgH = Math.min(h * 0.46, w * 0.55);
+    drawImageCover(g, imgFor(it.title ?? it.body ?? "", imgIndex), x + pad, y + pad, w - pad * 2, imgH, h * 0.03);
+    const grd = g.createLinearGradient(0, y + imgH * 0.55, 0, y + pad + imgH);
+    grd.addColorStop(0, "rgba(0,0,0,0)");
+    grd.addColorStop(1, hot ? "rgba(217,84,43,0.20)" : "rgba(0,0,0,0.06)");
+    g.fillStyle = grd;
+    g.fillRect(x + pad, y + imgH * 0.55, w - pad * 2, imgH * 0.45);
+
+    // ── 文字区：自上而下量着排，每一段都吃掉上一段的实际高度 ──────────
+    const availW = w - pad * 2;
+    g.textBaseline = "alphabetic";
+    const titleTop = y + pad + imgH + h * 0.052; // 第一行标题的「顶」，不是基线
+    g.font = `800 ${titleSize}px ${SANS}`;
+    const lines = wrapLines(g, it.title ?? "", availW, titleSize, 800, 2);
+
+    g.fillStyle = hot ? p.accent : p.text;
+    g.font = `800 ${titleSize}px ${SANS}`;
+    lines.forEach((ln, li) => g.fillText(ln, x + pad, titleTop + titleSize * 0.86 + li * lineH));
+
+    let cursor = titleTop + titleSize * 0.86 + (lines.length - 1) * lineH;
+    const tagY = y + h - pad - tagSize * 0.35;
+    if (it.tag) {
+      g.fillStyle = p.faint;
+      g.font = `400 ${tagSize}px ${SANS_UI}`;
+      g.fillText(ellipsize(g, it.tag, availW, tagSize, 400), x + pad, tagY);
+    }
+
+    const meta = it.value ? `${it.value} · ${it.body ?? ""}` : it.body ?? "";
+    const metaY = cursor + metaSize * 1.7;
+    if (meta && metaY < tagY - tagSize * 0.5) {
+      g.fillStyle = p.dim;
+      g.font = `600 ${metaSize}px ${SANS_UI}`;
+      const shown = ellipsize(g, meta, availW, metaSize, 600);
+      const wrapped = g.measureText(shown).width > availW * 1.02 ? wrapLines(g, meta, availW, metaSize, 600, 2) : [shown];
+      wrapped.forEach((ln, li) => g.fillText(ln, x + pad, metaY + li * metaSize * 1.3));
+      cursor = metaY;
+    }
+  };
+
+  g.save();
+  g.globalAlpha *= pose?.alpha ?? 1;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  g.translate(cx + (pose?.dx ?? 0), cy + (pose?.dy ?? 0) + rise);
+  if (pose?.rot) g.rotate(pose.rot);
+  if (pose?.scale !== undefined && pose.scale !== 1) g.scale(pose.scale, pose.scale);
+  g.translate(-cx, -cy);
+
+  const vx = pose?.vx ?? 0;
+  const vy = pose?.vy ?? 0;
+  // 阈值 2.2px/帧：低于这个数重影看不出，只会让字发虚
+  if (Math.hypot(vx, vy) > 2.2) motionBlur(g, body, -vx, -vy, { samples: 5, strength: 0.5 });
+  else body();
   g.restore();
 }
 
@@ -320,7 +486,7 @@ export function darkStrip(
 ) {
   g.beginPath();
   g.roundRect(x, y, w, h, h * 0.16);
-  g.fillStyle = p === palette({ isLight: true } as Theme) ? "#111315" : "rgba(255,255,255,0.09)";
+  g.fillStyle = p.isLight ? "#111315" : "rgba(255,255,255,0.09)";
   g.fill();
   const pad = h * 0.34;
   lines.slice(0, 2).forEach((ln, i) => {
@@ -407,3 +573,41 @@ export function serifNote(
 }
 
 export type { CardsContent };
+
+/**
+ * 算一张卡的入场姿态：从画面下方**沿弧线**落位。
+ *
+ * 之前是 `(1-ap)*h*0.026` —— 一条笔直的上升。用户说「运动轨迹太直」指的就是这个。
+ * 现在每条路径的起点横向偏移、弯曲度都按 seed 不同，所以一排卡不会像梳子一样
+ * 平行上浮，而是各有各的弧。
+ */
+export function tileEnter(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  u: number,
+  seed: number,
+  o: { rise?: number; spread?: number; scaleFrom?: number; bow?: number } = {},
+): TilePose {
+  const e = clamp01(u);
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const spread = o.spread ?? 0.55;
+  const from: [number, number] = [
+    cx + (rnd(seed * 7 + 1) - 0.5) * w * spread * 2,
+    cy + h * (o.rise ?? 1.15) * (0.8 + rnd(seed * 7 + 2) * 0.5),
+  ];
+  const path = enterPath(from, [cx, cy], o.bow ?? 0.14 + rnd(seed * 7 + 3) * 0.12);
+  const pose = path(e);
+  const v = velocityOf(path, e, 0.02);
+  return {
+    dx: pose.x - cx,
+    dy: pose.y - cy,
+    scale: lerp(o.scaleFrom ?? 0.93, 1, e),
+    rot: lerp((rnd(seed * 7 + 4) - 0.5) * 0.05, 0, e),
+    alpha: clamp01(e * 1.7),
+    vx: v[0],
+    vy: v[1],
+  };
+}

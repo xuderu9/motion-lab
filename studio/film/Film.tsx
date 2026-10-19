@@ -10,17 +10,26 @@
 // 并在前 k 帧淡入；前一个镜头保持原有范围淡出。总时长不变，因为时间轴没有位移。
 
 import React from "react";
-import { AbsoluteFill, Composition, Sequence, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Composition, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
 import type { CalculateMetadataFunction } from "remotion";
 import { ShotRenderer } from "../shot/ShotRenderer";
 import type { ShotSpec } from "../shot/types";
 import { FRAME_H, FRAME_W } from "../shot/types";
+import { DEFAULT_TRANSITION_FRAMES } from "./types";
+import type { TransitionId, TransitionSpec } from "./types";
+import { TransitionLayer, isOutOnTop } from "./transitions";
 
 export type FilmProps = {
   /** 与 plan.json 的 shots 字段同构，所以 plan.json 可以直接当 props 用 */
   shots: ShotSpec[];
   /** 交叉淡化帧数；0 = 全部硬切 */
   fade?: number;
+  /**
+   * 镜头边界上的转场。缺省 / 空数组 = 完全走原来的硬切 + fade 路径。
+   * 每一项占一个边界（afterShot 0-based）；给出后该边界按 frames 提前开始，
+   * 总时长仍然等于各镜头时长之和。
+   */
+  transitions?: TransitionSpec[];
 };
 
 /** 时间轴：第 i 个镜头的起始帧（不含淡化提前量） */
@@ -56,8 +65,13 @@ const ShotSlot: React.FC<{
   );
 };
 
-export const Film: React.FC<FilmProps> = ({ shots, fade = 0 }) => {
-  if (!shots.length) return <AbsoluteFill style={{ background: "#000" }} />;
+/**
+ * 原来的成片逻辑，**一行都不改**。
+ *
+ * 这是「默认零变更」的落点：transitions 缺省时 Film 直接返回它。
+ * 新增转场不得改变这条路径的输出（包括 fade 的提前量 / 淡入淡出曲线）。
+ */
+const LegacyFilm: React.FC<{ shots: ShotSpec[]; fade: number }> = ({ shots, fade }) => {
   const starts = shotStarts(shots);
   const k = Math.max(0, Math.round(fade));
 
@@ -76,6 +90,174 @@ export const Film: React.FC<FilmProps> = ({ shots, fade = 0 }) => {
       })}
     </AbsoluteFill>
   );
+};
+
+// ---------------------------------------------------------------------------
+// 转场路径
+//
+// 每个边界（shot i 与 shot i+1 之间）解析成一个 Edge：
+//   · transitions 里有这个边界 → 转场（k = frames）
+//   · 没有但 fade > 0        → 沿用交叉淡化
+//   · 都没有                 → 硬切
+//
+// 两个镜头在 [start_{i+1} - k, start_{i+1}) 内同时存在。第 i 个镜头的
+// Sequence 从 start_i - inK 开始、长度 duration_i + inK，所以它刚好在
+// start_{i+1} - 1 结束；第 i+1 个镜头在 overlap 的第一帧进场。总时长不变。
+// ---------------------------------------------------------------------------
+
+type Edge = {
+  kind: "transition" | "fade";
+  id: TransitionId;
+  frames: number;
+};
+
+function resolveEdges(
+  shots: ShotSpec[],
+  transitions: TransitionSpec[],
+  fadeK: number,
+): (Edge | null)[] {
+  const edges: (Edge | null)[] = [];
+  for (let b = 0; b < shots.length - 1; b++) {
+    let t: TransitionSpec | undefined;
+    for (const candidate of transitions) {
+      if (candidate.afterShot === b) t = candidate;
+    }
+    if (t) {
+      if (t.id === "cut") {
+        edges.push(null);
+        continue;
+      }
+      const requested = Math.round(t.frames ?? DEFAULT_TRANSITION_FRAMES);
+      if (requested <= 0) {
+        edges.push(null);
+        continue;
+      }
+      // 不允许一个边界吃掉整个镜头；相邻两个镜头各留一半以上给内容。
+      const safe = Math.max(
+        1,
+        Math.min(requested, shots[b].durationInFrames, shots[b + 1].durationInFrames),
+      );
+      edges.push({ kind: "transition", id: t.id, frames: safe });
+      continue;
+    }
+    if (fadeK > 0) {
+      edges.push({ kind: "fade", id: "cut", frames: fadeK });
+      continue;
+    }
+    edges.push(null);
+  }
+  return edges;
+}
+
+const TransitionShot: React.FC<{
+  spec: ShotSpec;
+  inEdge: Edge | null;
+  outEdge: Edge | null;
+  width: number;
+  height: number;
+}> = ({ spec, inEdge, outEdge, width, height }) => {
+  const f = useCurrentFrame();
+  const inK = inEdge?.frames ?? 0;
+  const outK = outEdge?.frames ?? 0;
+  const dur = spec.durationInFrames + inK;
+  const outStart = dur - outK;
+
+  // 只有 fade 边界改透明度；转场边界交给 TransitionLayer。
+  let opacity = 1;
+  if (inEdge?.kind === "fade" && inK > 0 && f < inK) opacity = Math.min(opacity, f / inK);
+  if (outEdge?.kind === "fade" && outK > 0 && f >= outStart) {
+    opacity = Math.min(opacity, (dur - f) / outK);
+  }
+
+  let content: React.ReactNode = <ShotRenderer spec={spec} />;
+
+  const outActive = outEdge?.kind === "transition" && outK > 0 && f >= outStart;
+  const inActive = inEdge?.kind === "transition" && inK > 0 && f < inK;
+
+  if (outActive) {
+    const p = outK <= 1 ? 1 : (f - outStart) / (outK - 1);
+    content = (
+      <TransitionLayer
+        id={outEdge.id}
+        p={p}
+        side="out"
+        width={width}
+        height={height}
+        frames={outK}
+      >
+        {content}
+      </TransitionLayer>
+    );
+  }
+  if (inActive) {
+    const p = inK <= 1 ? 1 : f / (inK - 1);
+    content = (
+      <TransitionLayer
+        id={inEdge.id}
+        p={p}
+        side="in"
+        width={width}
+        height={height}
+        frames={inK}
+      >
+        {content}
+      </TransitionLayer>
+    );
+  }
+
+  return <AbsoluteFill style={{ opacity }}>{content}</AbsoluteFill>;
+};
+
+const TransitionFilm: React.FC<{
+  shots: ShotSpec[];
+  fade: number;
+  transitions: TransitionSpec[];
+}> = ({ shots, fade, transitions }) => {
+  const starts = shotStarts(shots);
+  const { width, height } = useVideoConfig();
+  const fadeK = Math.max(0, Math.round(fade));
+  const edges = resolveEdges(shots, transitions, fadeK);
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#05080d" }}>
+      {shots.map((spec, i) => {
+        const inEdge = i > 0 ? edges[i - 1] ?? null : null;
+        const outEdge = i < shots.length - 1 ? edges[i] ?? null : null;
+        const inK = inEdge?.frames ?? 0;
+        const from = Math.max(0, starts[i] - inK);
+        const dur = spec.durationInFrames + inK;
+
+        // 「出画在上面」的转场：把出画镜头的 Sequence 抬起。
+        // 数值与 i 反向，保证两个相邻边界都抬的时候，先出画的仍在上面。
+        const elevated = outEdge?.kind === "transition" && isOutOnTop(outEdge.id);
+
+        return (
+          <Sequence
+            key={spec.id}
+            from={from}
+            durationInFrames={dur}
+            name={`shot-${i + 1}-${spec.layout}`}
+            style={elevated ? { zIndex: 1000 - i } : undefined}
+          >
+            <TransitionShot
+              spec={spec}
+              inEdge={inEdge}
+              outEdge={outEdge}
+              width={width}
+              height={height}
+            />
+          </Sequence>
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+export const Film: React.FC<FilmProps> = ({ shots, fade = 0, transitions }) => {
+  if (!shots.length) return <AbsoluteFill style={{ background: "#000" }} />;
+  // 没有转场配置 → 走完全原有的代码路径。
+  if (!transitions || transitions.length === 0) return <LegacyFilm shots={shots} fade={fade} />;
+  return <TransitionFilm shots={shots} fade={fade} transitions={transitions} />;
 };
 
 /**

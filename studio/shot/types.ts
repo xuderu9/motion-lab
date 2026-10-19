@@ -336,13 +336,29 @@ export type EnvSpec = {
   exposure?: number;
 };
 
-/** 强调层：扁平矢量文字（DOM）。保留人类明确说喜欢的「末尾弹出」方式。 */
-export type OverlaySpec = {
+/** 强调层：扁平矢量文字（DOM）。保留人类明确说喜欢的「末尾弹出」方式。 */export type OverlaySpec = {
   kicker?: string;
   title: string;
   bullets?: string[];
   /** 入场秒数；缺省 = 时长的 55% */
   enterAt?: number;
+};
+
+/**
+ * 后期栈参数。每一项都可以单独关掉（false）。
+ * 缺省值由 ShotRenderer 按主题给，见 `defaultFx()`。
+ */
+export type ShotFx = {
+  /** 暗角强度 0~1；false = 关 */
+  vignette?: number | false;
+  /** 胶片颗粒强度 0~1；false = 关 */
+  grain?: number | false;
+  /** 漏光强度 0~1；false = 关 */
+  leak?: number | false;
+  /** 四角压暗强度 0~1；false = 关 */
+  corners?: number | false;
+  /** 上下遮幅比例（0.055 ≈ 2.35:1）；false = 关 */
+  letterbox?: number | false;
 };
 
 export type ShotSpec = {
@@ -366,6 +382,12 @@ export type ShotSpec = {
    */
   scene?: string;
   overlay?: OverlaySpec;
+  /**
+   * 后期栈开关（见 studio/shot/post.ts）。缺省 = 按主题给一档保守默认值，
+   * 所以老 plan 不需要改就能吃到暗角/颗粒。
+   * 传 false 显式关掉某一项。
+   */
+  fx?: ShotFx;
   /**
    * 仅供验收：设为 "solid" 时整块屏幕画成纯品红，
    * 配合 check-overflow.py 精确数「内容有没有溢出屏幕」。

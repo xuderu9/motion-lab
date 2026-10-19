@@ -17,6 +17,7 @@ import { getScene } from "./scenes";
 import { toItems } from "./scenes/types";
 import { homographyMatrix3d } from "./homography";
 import { scanlines, screenNoise } from "./chrome";
+import { postStack } from "./post";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { drawSafeGuides } from "./safezone";
 import { ensureAssets, onAssetsReady } from "./assets";
@@ -91,8 +92,19 @@ export function paintScreen(
 
   // 全屏后处理。透明模式跳过：这些是「屏幕质感」，压在照片底板上会显脏。
   if (!transparent) {
-    // 只保留静态质感（扫描线是纹理，不是呼吸）。sheen / tintBreath 已删除。
+    // 质感层：扫描线是纹理，不是呼吸。sheen / tintBreath 已删除。
     scanlines(g, frame, W, H, theme);
+    // 后期栈（暗角 / 颗粒 / 遮幅 / 漏光）—— 每一项都可由 spec.fx 单独关掉。
+    // 默认值按主题给：亮底版面的暗角必须极轻，否则会像「屏幕脏了」。
+    const fx = spec.fx;
+    const light = theme.isLight;
+    postStack(g, W, H, frame, {
+      vignette: fx?.vignette === false ? false : { strength: fx?.vignette ?? (light ? 0.10 : 0.17) },
+      corners: fx?.corners === false ? false : (fx?.corners ?? (light ? 0.05 : 0.07)),
+      leak: typeof fx?.leak === "number" && fx.leak > 0 ? { intensity: fx.leak } : false,
+      letterbox: fx?.letterbox ?? false,
+      grain: fx?.grain === false ? false : { amount: fx?.grain ?? (light ? 0.026 : 0.036) },
+    });
     // 最后一层：逐帧伪随机抖动（模拟录屏底噪，参考片实测 1.5~3）
     screenNoise(g, frame, W, H, theme);
   }
