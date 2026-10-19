@@ -160,6 +160,7 @@ export function supportsLayout(layout: string, text: string): boolean {
       return false;
     case "page":
     case "panel":
+    case "mix":
       return true;
     case "doc":
       return true;

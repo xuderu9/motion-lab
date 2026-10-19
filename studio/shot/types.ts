@@ -267,10 +267,11 @@ export type LayoutName =
   | "quote"
   | "atmosphere"
   | "page"
-  | "panel";
+  | "panel"
+  | "mix";
 
 /** 同版式的第 1/2/3 种**排布**（不是配色） */
-export type Variant = 0 | 1 | 2;
+export type Variant = 0 | 1 | 2 | 3 | 4 | 5;
 
 /**
  * 版面渲染的画布尺寸。

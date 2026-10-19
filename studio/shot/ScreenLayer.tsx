@@ -83,7 +83,8 @@ export function paintScreen(
 
   // 有场景就用场景（吃条目，与内容解耦）；否则按 layout 画
   const scene = getScene(spec.scene);
-  if (scene) scene.draw(g, t, toItems(spec.content), theme, size, spec.variant);
+  // 场景的 variant 只有 0/1/2 三档；mix/page 这类版式才用到 3~5
+    if (scene) scene.draw(g, t, toItems(spec.content), theme, size, (spec.variant % 3) as 0 | 1 | 2);
   else paintLayout(g, t, spec.layout, spec.variant, spec.content, theme, size);
 
   g.restore();

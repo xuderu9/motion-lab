@@ -12,6 +12,7 @@
 
 import type { CardsContent, DocContent, LayoutContent, LayoutDraw, LayoutSize, Theme, Variant } from "../types";
 import { SANS, SANS_UI, SERIF_IT, mixedHeadline, spacedText } from "../typefaces";
+import { palette, paperBg } from "./blocks";
 
 /** 按最大宽度截断加省略号 */
 function fitText(g: CanvasRenderingContext2D, text: string, maxW: number): string {
@@ -29,10 +30,16 @@ const RATIO = {
   padTop: 0.078,
 };
 
-/** 版式自己铺纯色底（参考片是纯色，不是渐变） */
-export function paintPaper(g: CanvasRenderingContext2D, w: number, h: number, theme: Theme) {
-  g.fillStyle = theme.isLight ? "#f8f8f8" : "#0b0c0e";
-  g.fillRect(0, 0, w, h);
+/**
+ * 页面底。
+ *
+ * 原本照参考片铺纯平白 #f8f8f8，但用户说「第一张的背景改一下」——
+ * 纯平白是**别人的底**，也最容易被认出来。改用自己的「纸张底」：
+ * 暖白微渐变 + 极淡横纹（3% 透明）+ 轻微晕影，横纹还会缓慢上移。
+ * 信息密度和可读性不变，但一眼能区分开。
+ */
+export function paintPaper(g: CanvasRenderingContext2D, w: number, h: number, theme: Theme, t = 0) {
+  paperBg(g, w, h, palette(theme), t);
 }
 
 /** 顶部章节标签栏：参考片用它做章节导航，是全片最强的结构元素 */
@@ -119,7 +126,7 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   const c = content as CardsContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
-  paintPaper(g, w, h, theme);
+  paintPaper(g, w, h, theme, t);
   const mx = w * RATIO.marginX;
   chapterBar(
     g,
@@ -192,7 +199,7 @@ const pageV1: LayoutDraw = (g, t, content, theme, variant, size) => {
   const c = content as DocContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
-  paintPaper(g, w, h, theme);
+  paintPaper(g, w, h, theme, t);
   const mx = w * RATIO.marginX;
   chapterBar(g, w, h, ["首页", "一 · 背景", "二 · 做法", "三 · 结果", "四 · 结论"], variant + 1, theme, t);
   const headPx = Math.round(h * RATIO.headline);
@@ -225,7 +232,7 @@ const pageV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const c = content as CardsContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
-  paintPaper(g, w, h, theme);
+  paintPaper(g, w, h, theme, t);
   const mx = w * RATIO.marginX;
   chapterBar(g, w, h, ["首页", "一", "二", "三", "四"], variant + 1, theme, t);
   const headPx = Math.round(h * RATIO.headline);
