@@ -17,8 +17,9 @@ import { getScene } from "./scenes";
 import { toItems } from "./scenes/types";
 import { homographyMatrix3d } from "./homography";
 import { scanlines, screenNoise } from "./chrome";
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { drawSafeGuides } from "./safezone";
+import { ensureAssets, onAssetsReady } from "./assets";
 
 export const SCREEN_SIZE: LayoutSize = { w: CANVAS_W, h: CANVAS_H };
 export const FULL_SIZE: LayoutSize = { w: 1920, h: 1080 };
@@ -115,6 +116,11 @@ export const ScreenLayer: React.FC<{
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const ref = useRef<HTMLCanvasElement | null>(null);
+  // 素材必须在首帧前加载完，否则 drawImage 会画出空白
+  ensureAssets();
+  // 加载完成要触发一次重绘：useLayoutEffect 只依赖 frame，不会自己重跑
+  const [assetsReady, setAssetsReady] = useState(false);
+  useEffect(() => onAssetsReady(() => setAssetsReady(true)), []);
 
   // 必须 useLayoutEffect：Remotion 截图在 paint 之后、useEffect 之前，
   // 用 useEffect 会画到下一帧才生效（R3F 相机就栽在这上面，见 PLAYBOOK）。
@@ -124,7 +130,7 @@ export const ScreenLayer: React.FC<{
     const g = cv.getContext("2d");
     if (!g) return;
     paintScreen(g, frame, fps, spec, theme, size, transparent);
-  }, [frame, fps, spec, theme, size, transparent]);
+  }, [frame, fps, spec, theme, size, transparent, assetsReady]);
 
   return (
     <div

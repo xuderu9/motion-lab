@@ -9,6 +9,14 @@
 
 import type { CardsContent, Theme } from "../types";
 import { SANS, SANS_UI, SERIF_IT, spacedText, mixedHeadline } from "../typefaces";
+import { drawImageCover, CARD_IMAGES } from "../assets";
+
+/** 用标题做种子挑一张配图，保证同一张卡每帧一致 */
+function imgFor(key: string): string {
+  let h2 = 0;
+  for (const ch of key) h2 = (h2 * 31 + ch.charCodeAt(0)) >>> 0;
+  return CARD_IMAGES[h2 % CARD_IMAGES.length];
+}
 
 export const INK = {
   paper: "#f7f4ef",
@@ -239,16 +247,32 @@ export function contentTile(
   g.translate(0, rise);
   cardBg(g, x, y, w, h, p, hot);
   const pad = w * 0.042;
+  // 卡片上半部放一张真实配图（即梦生成），下半部才是文字。
+  // 之前整张卡只有文字，视觉上很「文档」；加了图之后才像参考片里的卡片。
+  const imgH = h * 0.46;
+  drawImageCover(g, imgFor(it.title ?? it.body ?? ""), x + pad, y + pad, w - pad * 2, imgH, h * 0.03);
+  // 图片下沿压一层渐变，避免文字贴图边发脏
+  const grd = g.createLinearGradient(0, y + imgH * 0.55, 0, y + pad + imgH);
+  grd.addColorStop(0, "rgba(0,0,0,0)");
+  grd.addColorStop(1, hot ? "rgba(217,84,43,0.20)" : "rgba(0,0,0,0.06)");
+  g.fillStyle = grd;
+  g.fillRect(x + pad, y + imgH * 0.55, w - pad * 2, imgH * 0.45);
+
+  const ty = y + pad + imgH + h * 0.05;
   g.textBaseline = "alphabetic";
   g.fillStyle = hot ? p.accent : p.text;
-  g.font = `800 ${Math.round(h * 0.19)}px ${SANS}`;
-  g.fillText(fitText(g, it.title ?? "", w - pad * 2), x + pad, y + h * 0.34);
-  g.fillStyle = p.text;
-  g.font = `700 ${Math.round(h * 0.104)}px ${SANS_UI}`;
-  g.fillText(fitText(g, it.value ? `${it.value} · ${it.body ?? ""}` : it.body ?? "", w - pad * 2), x + pad, y + h * 0.6);
+  g.font = `800 ${Math.round(h * 0.135)}px ${SANS}`;
+  g.fillText(fitText(g, it.title ?? "", w - pad * 2), x + pad, ty + h * 0.11);
+  g.fillStyle = p.dim;
+  g.font = `600 ${Math.round(h * 0.088)}px ${SANS_UI}`;
+  g.fillText(
+    fitText(g, it.value ? `${it.value} · ${it.body ?? ""}` : it.body ?? "", w - pad * 2),
+    x + pad,
+    ty + h * 0.20,
+  );
   g.fillStyle = p.faint;
-  g.font = `400 ${Math.round(h * 0.088)}px ${SANS_UI}`;
-  g.fillText(fitText(g, it.tag ?? "", w - pad * 2), x + pad, y + h * 0.8);
+  g.font = `400 ${Math.round(h * 0.072)}px ${SANS_UI}`;
+  g.fillText(fitText(g, it.tag ?? "", w - pad * 2), x + pad, y + h - pad * 0.9);
   g.restore();
 }
 

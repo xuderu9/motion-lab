@@ -13,6 +13,7 @@
 import type { CardsContent, DocContent, LayoutContent, LayoutDraw, LayoutSize, Theme, Variant } from "../types";
 import { SANS, SANS_UI, SERIF_IT, mixedHeadline, spacedText } from "../typefaces";
 import { palette, paperBg } from "./blocks";
+import { drawImageCover, CARD_IMAGES } from "../assets";
 
 /** 按最大宽度截断加省略号 */
 function fitText(g: CanvasRenderingContext2D, text: string, maxW: number): string {
@@ -100,13 +101,8 @@ function thumb(
   theme: Theme,
 ) {
   const r = Math.min(w, h) * 0.08;
-  g.beginPath();
-  g.roundRect(x, y, w, h, r);
-  const grd = g.createLinearGradient(x, y, x + w, y + h);
-  grd.addColorStop(0, theme.isLight ? "#cfd8e6" : "#2a3242");
-  grd.addColorStop(1, theme.isLight ? "#aab6c8" : "#1c2331");
-  g.fillStyle = grd;
-  g.fill();
+  // 真实配图（即梦生成），比灰块有质感得多
+  drawImageCover(g, CARD_IMAGES[idx % CARD_IMAGES.length], x, y, w, h, r);
   if (active) {
     g.lineWidth = Math.max(2, h * 0.022);
     g.strokeStyle = "#d92808";
@@ -114,12 +110,7 @@ function thumb(
     g.roundRect(x, y, w, h, r);
     g.stroke();
   }
-  g.fillStyle = theme.isLight ? "rgba(20,32,44,0.42)" : "rgba(230,238,250,0.42)";
-  g.font = `700 ${Math.round(h * 0.32)}px ${SANS}`;
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.fillText(String(idx + 1), x + w / 2, y + h / 2);
-  g.textAlign = "start";
+  void theme;
 }
 
 const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
