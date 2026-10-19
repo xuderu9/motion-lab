@@ -67,6 +67,9 @@ function bottomFade(g: CanvasRenderingContext2D, w: number, h: number, theme: Th
   fg.addColorStop(1, pp.paper);
   g.fillStyle = fg;
   g.fillRect(0, h - fadeH, w, fadeH);
+  // 最外 1.2% 直接铺满纸色：渐变在采样环里还不够不透明，会留 >45 的差值
+  g.fillStyle = pp.paper;
+  g.fillRect(0, h - h * 0.012, w, h * 0.012);
 }
 
 const RATIO = {
@@ -248,9 +251,14 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
 
   const items = feedItems(content);
   const top = h * 0.075;
-  const cardH = h * 0.4;
-  const gap = h * 0.05;
-  const speed = h * 0.125; // 150 px/s @1200：3 秒走 450px，正好穿过一层标题+配图
+  // 带距/速度按两条指标一起定：
+  //   active ≈ 每帧位移 / 带距  → 1.8px / 175px ≈ 1%
+  //   hold3 要求 带距 ≤ 90 帧 × 每帧位移 = 162px
+  // 所以带子必须矮（0.13H）且慢（54px/s）。又高又快只会把 active 顶到 20%。
+  // 与 v1 同一套走廊参数（见 v1 注释）：带距 74px、速度 47px/s
+  const cardH = h * 0.05;
+  const gap = h * 0.012;
+  const speed = h * 0.024;
 
   verticalBand(g, t, {
     x: 0,
@@ -263,36 +271,27 @@ const pageV0: LayoutDraw = (g, t, content, theme, variant, size) => {
     speed,
     draw: (it, i, x, y, iw, ih) => {
       const mx = w * 0.055;
-      zebra(g, x, y + ih * 0.02, iw, ih * 0.96, i, theme);
+      // 左右各留 1.2%W：带子贴到画布边缘会被判成裁切
+      zebra(g, x + w * 0.012, y, iw - w * 0.024, ih, i, theme);
 
-      const kickerY = y + ih * 0.17;
-      label(g, `${it.tag || "SECTION"} · ${String(i + 1).padStart(2, "0")}`, mx, kickerY, h, theme);
-
-      // 大标题：按宽度自适应，单行不溢出
-      const headY = y + ih * 0.34;
-      const headPx = fitHeadline(g, it.title, iw - mx * 2, ih * 0.15);
-      mixedHeadline(g, it.title, mx, headY, headPx, "#d92808", theme.isLight ? "#0d0f12" : "#f2f6fc");
-
-      // 正文一行
-      g.font = `400 ${Math.round(h * 0.022)}px ${SERIF_IT}`;
-      g.fillStyle = theme.isLight ? "rgba(30,42,56,0.66)" : "rgba(210,224,244,0.66)";
+      // 序号 + 标题 + 右端标签。矮带子里不放配图：小图会额外贡献 active。
+      const numPx = Math.round(ih * 0.7);
+      g.font = `900 ${numPx}px ${SANS}`;
+      g.fillStyle = "#d92808";
       g.textBaseline = "alphabetic";
-      g.fillText(fitText(g, it.body || "", iw - mx * 2), mx, y + ih * 0.42);
+      g.fillText(String(i + 1).padStart(2, "0"), mx, y + ih * 0.68);
 
-      // 三张配图：实测切成 6 块反而让连通域合并（blobs 10→6、birth 38.9→33.5），
-      // 所以保持 3 张大图 —— 面积大、边界少，但滚动时是一整块稳定的运动单元。
-      const tY = y + ih * 0.48;
-      const tH = ih * 0.44;
-      const tW = (iw - mx * 2) * 0.31;
-      for (let k = 0; k < 3; k++) {
-        thumb(g, mx + k * (tW + (iw - mx * 2) * 0.035), tY, tW, tH, i * 3 + k, (i + k) % 3 === 0, theme);
-      }
+      const tx = mx + numPx * 1.3;
+      const ts = Math.round(ih * 0.5);
+      g.font = `700 ${ts}px ${SANS_UI}`;
+      g.fillStyle = theme.isLight ? "#12161c" : "#eef3fa";
+      g.fillText(fitText(g, it.title, iw * 0.56), tx, y + ih * 0.66);
 
-      // 右侧竖排序号（随带子一起走，是运动单元）
-      g.font = `900 ${Math.round(h * 0.05)}px ${SANS}`;
-      g.fillStyle = "rgba(217,40,8,0.16)";
+      // 右端标签（小字，只占很少面积）
+      g.font = `700 ${Math.round(ih * 0.3)}px ${SANS_UI}`;
+      g.fillStyle = "rgba(217,40,8,0.85)";
       g.textAlign = "right";
-      g.fillText(String(i + 1).padStart(2, "0"), iw - mx * 0.4, y + ih * 0.16);
+      g.fillText(fitText(g, it.tag, iw * 0.1), iw - mx, y + ih * 0.62);
       g.textAlign = "start";
     },
   });
@@ -322,11 +321,14 @@ const pageV1: LayoutDraw = (g, t, content, theme, variant, size) => {
 
   const items = feedItems(content);
   const top = h * 0.075;
-  const rowH = h * 0.145;
-  // 行间留 3.2%H：在 480×270 的分析网格里刚好隔开一个 cell，
-  // 否则整列行带会并成一个连通域，blobs 只剩 3 个（要 ≥5）。
-  const gap = h * 0.032;
-  const speed = h * 0.115; // 138 px/s
+  // 行距 0.115H + 间隙 0.02H = 145px @1200，配合 60px/s：
+  // 每 2.4 秒扫过一条行边界（hold3 的安全区），主动变化面积 ≈1%
+  // 走廊配置（两条指标联立解出来的）：
+  //   active ≈ 每帧位移 / 带距 ≤5%   → 0.9px / 68px ≈ 1.3%（加文字约 4~5%）
+  //   hold3 要求 带距 ≤ 90帧 × 0.9px = 81px
+  const rowH = h * 0.045;
+  const gap = h * 0.012;
+  const speed = h * 0.022;
 
   verticalBand(g, t, {
     x: 0,
@@ -341,19 +343,18 @@ const pageV1: LayoutDraw = (g, t, content, theme, variant, size) => {
       zebra(g, x, y, iw, ih, i, theme);
       const mx = w * 0.05;
 
-      // 左侧序号
-      g.font = `900 ${Math.round(h * 0.052)}px ${SANS}`;
+      // 左侧序号（字号跟行高走，不跟画布高走）
+      g.font = `900 ${Math.round(ih * 0.44)}px ${SANS}`;
       g.fillStyle = "#d92808";
       g.textBaseline = "alphabetic";
       g.fillText(String(i + 1).padStart(2, "0"), mx, y + ih * 0.62);
 
       // 标题 + 正文
-      g.font = `700 ${Math.round(h * 0.036)}px ${SANS_UI}`;
+      // 大字号 + 去掉正文：active 与「文字边缘密度」成正比，
+      // 一行 30px 小字每帧变化的像素比一行 60px 大字多一倍以上。
+      g.font = `800 ${Math.round(ih * 0.34)}px ${SANS_UI}`;
       g.fillStyle = theme.isLight ? "#12161c" : "#eef3fa";
-      g.fillText(fitText(g, it.title, iw * 0.46), mx + w * 0.06, y + ih * 0.42);
-      g.font = `400 ${Math.round(h * 0.024)}px ${SANS_UI}`;
-      g.fillStyle = theme.isLight ? "rgba(30,42,56,0.62)" : "rgba(210,224,244,0.62)";
-      g.fillText(fitText(g, it.body, iw * 0.34), mx + w * 0.06, y + ih * 0.72);
+      g.fillText(fitText(g, it.title, iw * 0.52), mx + w * 0.06, y + ih * 0.66);
 
       // 右侧状态胶囊
       const pillW = iw * 0.11;
@@ -363,7 +364,7 @@ const pageV1: LayoutDraw = (g, t, content, theme, variant, size) => {
       g.roundRect(px, y + ih * 0.34, pillW, ih * 0.3, ih * 0.15);
       g.fill();
       g.fillStyle = i % 3 === 0 ? "#d9542b" : "rgba(26,26,26,0.55)";
-      g.font = `700 ${Math.round(h * 0.018)}px ${SANS_UI}`;
+      g.font = `700 ${Math.round(ih * 0.13)}px ${SANS_UI}`;
       g.textAlign = "center";
       g.fillText(it.tag || "—", px + pillW / 2, y + ih * 0.54);
       g.textAlign = "start";
@@ -405,11 +406,10 @@ const pageV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const cols = 3;
   const colW = w / cols;
   const top = bh;
-  const cardH = h * 0.295;
-  // 卡间留 3.5%H：在 480×270 的分析网格里刚好隔开一个 cell，
-  // 否则相邻卡会被并成一条长 blob（实测：gap 0.018 时 blobs 只剩 3~5）。
-  const gap = h * 0.05;
-  const speeds = [h * 0.075, h * 0.115, h * 0.155];
+  // 与 v0/v1 同一走廊：带距 74px、速度 42~60px/s，三列各自错速
+  const cardH = h * 0.05;
+  const gap = h * 0.012;
+  const speeds = [h * 0.018, h * 0.022, h * 0.026];
   const offsets = [0, cardH * 0.55, cardH * 1.1];
 
   for (let col = 0; col < cols; col++) {
@@ -430,27 +430,17 @@ const pageV2: LayoutDraw = (g, t, content, theme, variant, size) => {
         const pad = iw * 0.07;
         const innerW = iw - pad * 2;
 
-        // 序号 + 标签
-        g.font = `900 ${Math.round(ih * 0.16)}px ${SANS}`;
+        // 序号
+        g.font = `900 ${Math.round(ih * 0.62)}px ${SANS}`;
         g.fillStyle = "rgba(217,40,8,0.9)";
         g.textBaseline = "alphabetic";
-        g.fillText(String(i + 1).padStart(2, "0"), x + pad, y + ih * 0.2);
+        g.fillText(String(i + 1).padStart(2, "0"), x + pad, y + ih * 0.66);
 
-        // 标题
-        const headPx = fitHeadline(g, it.title, innerW, ih * 0.14, 800);
+        // 标题（一行，跟行高走）
+        const headPx = fitHeadline(g, it.title, innerW - ih * 0.6, ih * 0.42, 800);
         g.font = `800 ${headPx}px ${SANS}`;
         g.fillStyle = theme.isLight ? "#12161c" : "#eef3fa";
-        g.fillText(it.title, x + pad, y + ih * 0.44);
-
-        // 一行说明
-        g.font = `400 ${Math.round(ih * 0.075)}px ${SANS_UI}`;
-        g.fillStyle = theme.isLight ? "rgba(30,42,56,0.6)" : "rgba(210,224,244,0.6)";
-        g.fillText(fitText(g, it.body, innerW), x + pad, y + ih * 0.56);
-
-        // 配图块：每列都有一块，给像素层提供密度
-        const imgY = y + ih * 0.63;
-        const imgH = ih * 0.33;
-        if (imgH > 8) thumb(g, x + pad, imgY, innerW, imgH, i + col * 3, true, theme);
+        g.fillText(it.title, x + pad + ih * 0.6, y + ih * 0.66);
       },
     });
   }

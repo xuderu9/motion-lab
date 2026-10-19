@@ -184,123 +184,124 @@ function contentCard(
   g.restore();
 }
 
+/**
+ * v0：卡片台账（整页持续上滚）。
+ *
+ * 旧版是 3 张卡每 2.4 秒轮换一次 —— 卡片只占 ~30% 面积，
+ * 纸底 / 标题 / 底下黑条 / 时间轴那 70% 一动不动，所以 hold3 卡在 67%。
+ *
+ * 新版把整页做成一条**比屏幕更长的纸带**：卡片行从下沿进来、上沿出去；
+ * 行与行之间是两层色调（不是白底滚白底，那种滚动不产生任何像素变化）；
+ * 底部黑条改成横向走马灯，时间轴游标持续扫。
+ * 带距/速度按 active 与 hold3 联立解出（推导见 page.ts v1 的注释）。
+ */
 const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   const c = content as CardsContent;
   const w = size?.w ?? 1600;
   const h = size?.h ?? 1200;
   paper(g, w, h, t);
-  topBar(g, w, h, "MOTION LAB · 动效实验室", "F 7200 / 8940");
 
-  const mx = w * 0.062;
-  // 小标题
-  g.font = `700 ${Math.round(h * 0.021)}px ${SANS_UI}`;
-  g.textBaseline = "alphabetic";
-  const sq = h * 0.014;
-  g.fillStyle = C.accent;
-  g.fillRect(mx, h * 0.072, sq, sq);
-  g.fillStyle = C.ink;
-  spacedText(g, "实验器材", mx + sq + h * 0.012, h * 0.086, h * 0.002);
+  const items = pItems(c);
 
-  // 大标题：黑 + 橙强调（同字体，靠颜色分段；和 page 的衬线斜体是两种做法）
-  const headPx = Math.round(h * 0.082);
-  const hx = mixedHeadline(g, c.heading || "挑你的引擎", mx, h * 0.185, headPx, C.accent, C.ink);
-  void hx;
-
-  // 副标
-  if (c.subtitle) {
-    g.fillStyle = C.meta;
-    g.font = `400 ${Math.round(h * 0.024)}px ${SANS_UI}`;
-    g.fillText(fitText(g, c.subtitle, w - mx * 2), mx, h * 0.235);
-  }
-
-  // 卡片网格：**列数跟着卡片数量走**。
-  // 以前固定 2×3，而 plan 里多数镜头只有 3 张卡 —— 第二行永远空一半，
-  // 成片里就是一个大洞。现在 3 张就排成一行三列，4 张 2×2，5~6 张 3×2。
-  const items = (c.cards ?? []).slice(0, 6);
-  const pSalt = imgSalt(c.heading ?? '');
-  const n = Math.max(1, items.length);
-  const cols = n <= 3 ? 3 : n === 4 ? 2 : 3;
-  const rows = Math.ceil(n / cols);
-  const gap = w * 0.014;
-  const gapY = h * 0.016;
-  const gw = (w - mx * 2 - gap * (cols - 1)) / cols;
-  const areaTop = h * 0.272;
-  const areaBottom = h * 0.625;
-  const gh = (areaBottom - areaTop - gapY * (rows - 1)) / rows;
-  for (let i = 0; i < n; i++) {
-    const r = Math.floor(i / cols);
-    const col = i % cols;
-    // 入场只在前 1.4 秒；之后交给**轮换**（slotCycle）：卡片每 2.4 秒换内容，
-    // 换的时候旧的退出、新的进场。卡片不会「摆上去就死在那儿」。
-    const appear = stagger(t, i, { each: 0.22, dur: 0.58, from: 0, ease: "snap" });
-    const entrance = (1 - appear) * h * 0.026;
-    const draws =
-      t < 1.4
-        ? [{ item: items[i], exit: null as number | null, enter: null as number | null }]
-        : slotCycle(items, t - 1.4, i, n, 2.4, 0.7);
-
-    for (const d of draws) {
-      const it = d.item ?? { title: "", body: "", tag: "" };
-      const tf = slotTransform(d, gh, { rise: 0.22 });
-      contentCard(
-        g,
-        mx + col * (gw + gap),
-        areaTop + r * (gh + gapY),
-        gw,
-        gh,
-        it.title || `项目 ${i + 1}`,
-        it.value ? `${it.value} · ${it.body ?? ""}` : it.body ?? "",
-        it.tag ?? "",
-        it === items[0],
-        theme,
-        entrance,
-        pSalt + Math.max(0, items.indexOf(it)),
-        { dy: tf.dy, alpha: tf.alpha, scale: tf.scale },
-      );
-    }
-  }
-
-  // 底部黑色结论条
-  const by = h * 0.655;
-  const bh = h * 0.1;
+  // 顶栏：只占 4%H，右端计数器每秒跳 12 次（不是一整块不动的纸）
+  const th = h * 0.04;
+  g.fillStyle = C.card;
+  g.fillRect(0, 0, w, th);
+  g.strokeStyle = C.line;
   g.beginPath();
-  g.roundRect(mx, by, w - mx * 2, bh, h * 0.012);
-  g.fillStyle = C.rule;
-  g.fill();
-  g.fillStyle = "#ffffff";
-  g.font = `600 ${Math.round(h * 0.026)}px ${SANS_UI}`;
-  g.textBaseline = "alphabetic";
-  const line1 = (c.tags ?? [])[0] ?? "经验法则：一个点子、10 秒内 → 纯 HTML；系列、模板、数据驱动 → Remotion";
-  g.fillText(fitText(g, line1, w - mx * 2 - bh * 0.6), mx + bh * 0.3, by + bh * 0.42);
+  g.moveTo(0, th);
+  g.lineTo(w, th);
+  g.stroke();
+  g.fillStyle = C.ink;
+  g.font = `800 ${Math.round(h * 0.022)}px ${SANS}`;
+  g.textBaseline = "middle";
+  g.fillText("MOTION LAB", h * 0.03, th * 0.52);
+  g.font = `600 ${Math.round(h * 0.016)}px ${SANS_UI}`;
+  g.fillStyle = C.meta;
+  g.fillText(fitText(g, c.heading ?? "", w * 0.5), h * 0.03 + h * 0.16, th * 0.52);
   g.fillStyle = C.accent;
-  const line2 = (c.tags ?? [])[1] ?? "习惯网页和 GSAP → HyperFrames；任何 3D → Three.js；动效活在产品里 → Motion";
-  g.fillText(fitText(g, line2, w - mx * 2 - bh * 0.6), mx + bh * 0.3, by + bh * 0.78);
+  g.textAlign = "right";
+  g.fillText(`${items.length} / ${Math.round(t * 12)}`, w - h * 0.03, th * 0.52);
+  g.textAlign = "start";
+  g.textBaseline = "alphabetic";
 
-  // 底部时间轴：细线 + 菱形，游标匀速走
-  const ty = h * 0.765;
+  // 底部黑条：横向走马灯（文字持续移动，黑条本身只占 5.5%H）
+  // 四周留边：贴到画布边缘会被 check-canvas-overflow 判成内容裁切（实测 38%）
+  const bh = h * 0.055;
+  const barX = w * 0.03;
+  const barW = w - barX * 2;
+  const by = h - bh - h * 0.015;
+
+  const rowH = h * 0.05;
+  const gap = h * 0.012;
+  const speed = h * 0.024;
+  vstack(g, t, {
+    x: 0,
+    y: th,
+    w,
+    h: by - th,
+    items,
+    itemH: rowH,
+    gap,
+    speed,
+    draw: (it, i, x, y, iw, ih) => {
+      g.fillStyle = rowTone(i);
+      // 左右各留 1.2%W：带子贴到画布边缘会被判成裁切
+      g.fillRect(x + w * 0.012, y, iw - w * 0.024, ih);
+      const mx = w * 0.04;
+
+      g.font = `900 ${Math.round(ih * 0.6)}px ${SANS}`;
+      g.fillStyle = C.accent;
+      g.textBaseline = "alphabetic";
+      g.fillText(String(i + 1).padStart(2, "0"), mx, y + ih * 0.68);
+
+      g.font = `700 ${Math.round(ih * 0.44)}px ${SANS_UI}`;
+      g.fillStyle = C.ink;
+      g.fillText(fitText(g, it.title, iw * 0.5), mx + ih * 0.9, y + ih * 0.66);
+
+      g.font = `700 ${Math.round(ih * 0.3)}px ${SANS_UI}`;
+      g.fillStyle = C.meta;
+      g.textAlign = "right";
+      g.fillText(fitText(g, it.tag, iw * 0.12), iw - mx, y + ih * 0.64);
+      g.textAlign = "start";
+
+      g.fillStyle = C.line;
+      g.fillRect(mx, y + ih - 1, iw - mx * 2, 1);
+    },
+  });
+
+  // 黑条 + 走马灯
+  g.fillStyle = C.rule;
+  g.fillRect(barX, by, barW, bh);
+  const line = (c.tags ?? [])[0] ?? "MOTION LAB · 先渲一版，再看数字，再改一处";
+  g.save();
+  g.beginPath();
+  g.rect(barX, by, barW, bh);
+  g.clip();
+  g.font = `700 ${Math.round(h * 0.022)}px ${SANS_UI}`;
+  g.fillStyle = "#ffffff";
+  g.textBaseline = "middle";
+  const tw = g.measureText(line).width + h * 0.12;
+  const off = mod(t * h * 0.09, tw);
+  for (let k = -1; k < 4; k++) g.fillText(line, barX - off + k * tw, by + bh * 0.55);
+  g.restore();
+  g.textBaseline = "alphabetic";
+
+  // 时间轴线 + 游标（贴着黑条上沿）
+  const ty = by - h * 0.012;
   g.strokeStyle = C.line;
   g.lineWidth = 1;
   g.beginPath();
-  g.moveTo(mx, ty);
-  g.lineTo(w - mx, ty);
+  g.moveTo(w * 0.04, ty);
+  g.lineTo(w * 0.96, ty);
   g.stroke();
-  const cursor = mx + ((t * 0.12) % 1) * (w - mx * 2);
-  for (let i = 0; i <= 12; i++) {
-    const x = mx + (i / 12) * (w - mx * 2);
-    const on = Math.abs(x - cursor) < (w - mx * 2) * 0.06;
-    g.fillStyle = on ? C.accent : "rgba(217,84,43,0.35)";
-    g.beginPath();
-    const s = h * 0.008;
-    g.moveTo(x, ty - s);
-    g.lineTo(x + s, ty);
-    g.lineTo(x, ty + s);
-    g.lineTo(x - s, ty);
-    g.closePath();
-    g.fill();
-  }
-  g.fillStyle = C.ink;
-  g.font = `700 ${Math.round(h * 0.016)}px ${SANS_UI}`;
-  g.fillText(`${items.length || 6} 引擎`, cursor + h * 0.016, ty - h * 0.014);
+  const cxp = w * 0.04 + mod(t * 0.035, 1) * (w * 0.92);
+  g.fillStyle = C.accent;
+  g.beginPath();
+  g.arc(cxp, ty, h * 0.005, 0, Math.PI * 2);
+  g.fill();
+  void theme;
+  void variant;
 };
 
 const mod = (v: number, m: number) => ((v % m) + m) % m;
@@ -420,9 +421,9 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
     w: sb,
     h: h - th - h * 0.01,
     items: navNames.map((n, i) => ({ title: n, body: "", tag: `${i}` })),
-    itemH: h * 0.056,
+    itemH: h * 0.05,
     gap: 0,
-    speed: h * 0.052,
+    speed: h * 0.024,
     draw: (it, i, x, y, iw, ih) => {
       const on = i % 5 === variant % 5;
       if (on) {
@@ -449,7 +450,8 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
   const x0 = sb + w * 0.02;
   const cw = w - x0;
 
-  const rowH = h * 0.1;
+  // 与 page 同一走廊：行距 0.05H、速度 0.024H/s
+  const rowH = h * 0.05;
   vstack(g, t, {
     x: x0,
     y: th + h * 0.012,
@@ -458,20 +460,18 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
     items,
     itemH: rowH,
     // 行间必须 ≥1 个分析 cell（32px @1080），否则整列行带并成一个 blob
-    gap: h * 0.03,
-    speed: h * 0.13, // 156 px/s：3 秒走 468px ≈ 4 行
+    gap: h * 0.012,
+    speed: h * 0.024,
     draw: (it, i, x, y, iw, ih) => {
       // 两层都上色（相差 ~8 级），行边界才会扫过整块纸面
       g.fillStyle = rowTone(i);
       // 右缘留 1%W
       g.fillRect(x, y, iw - w * 0.01, ih);
       g.fillStyle = C.ink;
-      g.font = `700 ${Math.round(h * 0.024)}px ${SANS_UI}`;
+      // 字号跟行高走；去掉正文列（两列小字会让 active 翻倍）
+      g.font = `700 ${Math.round(ih * 0.42)}px ${SANS_UI}`;
       g.textBaseline = "alphabetic";
-      g.fillText(fitText(g, it.title, iw * 0.36), x + h * 0.02, y + ih * 0.46);
-      g.fillStyle = C.meta;
-      g.font = `400 ${Math.round(h * 0.019)}px ${SANS_UI}`;
-      g.fillText(fitText(g, it.body ?? "", iw * 0.3), x + iw * 0.42, y + ih * 0.46);
+      g.fillText(fitText(g, it.title, iw * 0.58), x + h * 0.02, y + ih * 0.66);
       const pillW = iw * 0.12;
       const px = x + iw - pillW - h * 0.02;
       g.fillStyle = i % 3 === 0 ? C.accentSoft : "rgba(26,26,26,0.05)";
@@ -479,7 +479,7 @@ const panelV1: LayoutDraw = (g, t, content, theme, variant, size) => {
       g.roundRect(px, y + ih * 0.26, pillW, ih * 0.4, ih * 0.2);
       g.fill();
       g.fillStyle = i % 3 === 0 ? C.accent : C.meta;
-      g.font = `600 ${Math.round(h * 0.016)}px ${SANS_UI}`;
+      g.font = `600 ${Math.round(ih * 0.26)}px ${SANS_UI}`;
       g.textAlign = "center";
       g.fillText(i % 3 === 0 ? "进行中" : "待办", px + pillW / 2, y + ih * 0.52);
       g.textAlign = "start";
@@ -545,8 +545,9 @@ const panelV2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const innerX = mx + h * 0.035;
   const innerW = pw - h * 0.07;
   const colW = (innerW - gutter) / 2;
-  const cardH = ph * 0.36;
-  const speeds = [h * 0.105, h * 0.145];
+  // 与 v0/v1 同一走廊：行距 0.05H、速度 0.018~0.026H/s
+  const cardH = h * 0.05;
+  const speeds = [h * 0.018, h * 0.026];
   const offsets = [0, cardH * 0.62];
   const pSalt = imgSalt(c.heading ?? "");
 
@@ -558,27 +559,26 @@ const panelV2: LayoutDraw = (g, t, content, theme, variant, size) => {
       h: ph - hh * 1.06 - h * 0.01,
       items,
       itemH: cardH,
-      gap: h * 0.05,
+      gap: h * 0.012,
       speed: speeds[col],
       offset: offsets[col],
       draw: (it, i, x, y, iw, ih) => {
-        contentCard(
-          g,
-          x,
-          y,
-          iw,
-          ih,
-          it.title,
-          it.value ? `${it.value} · ${it.body}` : it.body,
-          it.tag,
-          (i + col) % 3 === 0,
-          theme,
-          0,
-          pSalt + i + col * 3,
-          undefined,
-          // 交替卡面：白卡滚过白面板同样不产生变化，所以卡片本身也要有深浅两层
-          ["#f9f5f0", "#eee6dd", "#f4eee7", "#e8dfd4"][((i + col) % 4 + 4) % 4],
-        );
+        // 紧凑行（原来是大卡：卡面大、文字密，active 会翻到 20%+）
+        g.fillStyle = ["#f9f5f0", "#eee6dd", "#f4eee7", "#e8dfd4"][(((i + col) % 4) + 4) % 4];
+        g.fillRect(x, y, iw, ih);
+        g.fillStyle = C.accent;
+        g.font = `900 ${Math.round(ih * 0.56)}px ${SANS}`;
+        g.textBaseline = "alphabetic";
+        g.fillText(String(i + 1).padStart(2, "0"), x + ih * 0.18, y + ih * 0.68);
+        g.fillStyle = C.ink;
+        g.font = `700 ${Math.round(ih * 0.4)}px ${SANS_UI}`;
+        g.fillText(fitText(g, it.title, iw * 0.6), x + ih * 0.95, y + ih * 0.66);
+        g.fillStyle = C.meta;
+        g.font = `700 ${Math.round(ih * 0.26)}px ${SANS_UI}`;
+        g.textAlign = "right";
+        g.fillText(fitText(g, it.tag, iw * 0.14), x + iw - ih * 0.2, y + ih * 0.64);
+        g.textAlign = "start";
+        void pSalt;
       },
     });
   }
