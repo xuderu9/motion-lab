@@ -15,7 +15,7 @@
 
 import type { CardsContent, LayoutDraw, Theme } from "../types";
 import { SANS, SANS_UI, spacedText, mixedHeadline } from "../typefaces";
-import { cardBg, palette, imgFor, type Palette } from "./blocks";
+import { cardBg, palette, imgFor, imgSalt, type Palette } from "./blocks";
 import { drawImageCover } from "../assets";
 import { wrapLines } from "../chrome";
 import { stagger } from "../motion";
@@ -194,6 +194,7 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
   // 以前固定 2×3，而 plan 里多数镜头只有 3 张卡 —— 第二行永远空一半，
   // 成片里就是一个大洞。现在 3 张就排成一行三列，4 张 2×2，5~6 张 3×2。
   const items = (c.cards ?? []).slice(0, 6);
+  const pSalt = imgSalt(c.heading ?? '');
   const n = Math.max(1, items.length);
   const cols = n <= 3 ? 3 : n === 4 ? 2 : 3;
   const rows = Math.ceil(n / cols);
@@ -221,7 +222,7 @@ const panelV0: LayoutDraw = (g, t, content, theme, variant, size) => {
       i === 0,
       theme,
       rise,
-      i,
+      pSalt + i,
     );
   }
 

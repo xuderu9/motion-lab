@@ -28,6 +28,7 @@ import {
   serifNote,
   fitText,
   tileEnter,
+  imgSalt,
 } from "./blocks";
 import { stagger } from "../motion";
 import { SANS, SANS_UI, SERIF_IT, splitHeadline as splitH } from "../typefaces";
@@ -66,15 +67,23 @@ const mix0: LayoutDraw = (g, t, content, theme, variant, size) => {
     labelValueRow(g, it.tag || `0${i + 1}`, it.value || it.body || it.title, mx, h * (0.42 + i * 0.115), maxHeadW, h, p, ap);
   });
 
+  // 同屏配图从 salt0 起连续取，保证 i 不同则图必不同
+  const salt0 = imgSalt(c.heading ?? "");
   const grid = (c.cards ?? []).slice(0, 4);
   const gap = w * 0.016;
   const cw = (w - splitX - mx - gap) / 2;
-  const ch = h * 0.28;
+  // 卡高受字幕带约束：底部 22% 必须空着（用户自己在剪映加字幕）。
+  // 原来 0.28h 会让第二排卡片压到 0.89h，正好落在字幕上。
+  const ch = h * 0.21;
   grid.forEach((it, i) => {
     const u = stagger(t, i, { each: 0.14, dur: 0.68, from: 0.35, ease: "ref" });
-    const tx = splitX + (i % 2) * (cw + gap);
+    // 奇数张时最后一张**跨两列**，右下角不留一个空槽。
+    // 之前 3 张卡按 2 列排，右下永远空一块，看起来像内容没加载出来。
+    const span = grid.length % 2 === 1 && i === grid.length - 1;
+    const tw = span ? w - splitX - mx : cw;
+    const tx = splitX + (span ? 0 : (i % 2) * (cw + gap));
     const ty = h * 0.3 + Math.floor(i / 2) * (ch + gap);
-    contentTile(g, it, tx, ty, cw, ch, p, i === 0, 0, tileEnter(tx, ty, cw, ch, u, i + 11), i);
+    contentTile(g, it, tx, ty, tw, ch, p, i === 0, 0, tileEnter(tx, ty, tw, ch, u, i + 11), salt0 + i);
   });
 
   g.fillStyle = p.line;
@@ -136,6 +145,7 @@ const mix2: LayoutDraw = (g, t, content, theme, variant, size) => {
   paperBg(g, w, h, p, t);
   const mx = w * 0.05;
 
+  const salt2 = imgSalt(c.heading ?? '');
   const items = (c.cards ?? []).slice(0, 6);
   const cols = 3;
   // 行数跟着内容走：只有 3 条时不要留一个空的下半屏。
@@ -158,7 +168,8 @@ const mix2: LayoutDraw = (g, t, content, theme, variant, size) => {
   const gap = w * 0.014;
   const cw = (w - mx * 2 - gap * (cols - 1)) / cols;
   const areaTop = h * 0.145;
-  const areaBottom = h * 0.94;
+  // 0.94 → 0.76：下面是字幕带（safezone.ts 的 SUBTITLE_BAND = 0.22）
+  const areaBottom = h * 0.76;
   // 单行时不要把卡片拉满整屏：卡里内容撑不满会留下一个大空块。
   // 限高并在内容区里垂直居中，留白就落在上下，读起来是有意的。
   const ch = rows === 2 ? (areaBottom - areaTop - gap) / 2 : Math.min(areaBottom - areaTop, cw * 1.12);
@@ -169,7 +180,7 @@ const mix2: LayoutDraw = (g, t, content, theme, variant, size) => {
     const u = stagger(t, i, { each: 0.115, dur: 0.64, from: 0, ease: "ref" });
     const tx = mx + (i % cols) * (cw + gap);
     const ty = top + Math.floor(i / cols) * (ch + gap);
-    contentTile(g, it, tx, ty, cw, ch, p, i === 0, 0, tileEnter(tx, ty, cw, ch, u, i + 31), i);
+    contentTile(g, it, tx, ty, cw, ch, p, i === 0, 0, tileEnter(tx, ty, cw, ch, u, i + 31), salt2 + i);
   }
 };
 
@@ -242,6 +253,7 @@ const mix4: LayoutDraw = (g, t, content, theme, variant, size) => {
   g.fillText(fitText(g, c.subtitle ?? "", w * 0.84), w * 0.06, topH * 0.74);
 
   // 下半：三列卡
+  const salt4 = imgSalt(c.heading ?? '');
   const items = (c.cards ?? []).slice(0, 3);
   const mx = w * 0.06;
   const gap = w * 0.02;
@@ -251,7 +263,7 @@ const mix4: LayoutDraw = (g, t, content, theme, variant, size) => {
     const u = stagger(t, i, { each: 0.16, dur: 0.66, from: 0.25, ease: "ref" });
     const tx = mx + i * (cw + gap);
     const ty = topH + h * 0.06;
-    contentTile(g, it, tx, ty, cw, ch, p, false, 0, tileEnter(tx, ty, cw, ch, u, i + 51), i);
+    contentTile(g, it, tx, ty, cw, ch, p, false, 0, tileEnter(tx, ty, cw, ch, u, i + 51), salt4 + i);
   });
 };
 
@@ -277,6 +289,7 @@ const mix5: LayoutDraw = (g, t, content, theme, variant, size) => {
 
   // 三张卡沿对角线依次排开，**互不重叠**：横向 0.44w 步进、纵向 0.26h 步进
   // 只放两张卡，沿对角线拉开，右下角不再有第三张去撞黑条
+  const salt5 = imgSalt(c.heading ?? '');
   const items = (c.cards ?? []).slice(0, 2);
   const cw = w * 0.3;
   const ch = h * 0.22;
@@ -284,7 +297,7 @@ const mix5: LayoutDraw = (g, t, content, theme, variant, size) => {
     const u = stagger(t, i, { each: 0.22, dur: 0.7, from: 0.3, ease: "ref" });
     const tx = w * 0.42 + i * (w * 0.17);
     const ty = h * 0.37 + i * (h * 0.175);
-    contentTile(g, it, tx, ty, cw, ch, p, i === 1, 0, tileEnter(tx, ty, cw, ch, u, i + 71, { bow: 0.24 }), i);
+    contentTile(g, it, tx, ty, cw, ch, p, i === 1, 0, tileEnter(tx, ty, cw, ch, u, i + 71, { bow: 0.24 }), salt5 + i);
     g.globalAlpha = 1;
   });
 

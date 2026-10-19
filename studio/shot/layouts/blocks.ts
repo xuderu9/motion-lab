@@ -14,12 +14,26 @@ import { paperNoise } from "../post";
 import { motionBlur, clamp01, lerp, rnd, enterPath, velocityOf } from "../motion";
 import { ellipsize, wrapLines } from "../chrome";
 
-/** 用标题做种子挑一张配图，保证同一张卡每帧一致；idx 用来**错开同屏卡片**，避免两张卡撞同一张图 */
-export function imgFor(key: string, idx = 0): string {
+function hashStr(s: string): number {
   let h2 = 0;
-  for (const ch of key) h2 = (h2 * 31 + ch.charCodeAt(0)) >>> 0;
-  return CARD_IMAGES[(h2 + idx) % CARD_IMAGES.length];
+  for (const ch of s) h2 = (h2 * 31 + ch.charCodeAt(0)) >>> 0;
+  return h2;
 }
+
+/**
+ * 挑一张配图。`idx >= 0` 时当作**绝对下标**，`idx < 0` 才用标题哈希。
+ *
+ * 为什么改成绝对下标：之前是 `(hash(title)+i) % 12`，两张卡的标题哈希只要差 11
+ * 就会撞同一张图 —— 实测同屏两张卡用了同一张蓝图。
+ * 绝对下标由版面用 `imgSalt(heading) + i` 算，(salt+i) % 12 对 i<n 必然各不相同。
+ */
+export function imgFor(key: string, idx = -1): string {
+  if (idx >= 0) return CARD_IMAGES[idx % CARD_IMAGES.length];
+  return CARD_IMAGES[hashStr(key) % CARD_IMAGES.length];
+}
+
+/** 同一版面里分配配图的起点：由标题决定，所以不同镜头换一拨图 */
+export const imgSalt = (key: string) => hashStr(key ?? "") % CARD_IMAGES.length;
 
 export const INK = {
   paper: "#f7f4ef",
@@ -374,7 +388,7 @@ export function contentTile(
   hot = false,
   rise = 0,
   pose?: TilePose,
-  imgIndex = 0,
+  imgIndex = -1,
 ) {
   const body = () => {
     cardBg(g, x, y, w, h, p, hot);
