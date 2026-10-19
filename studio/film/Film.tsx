@@ -237,7 +237,7 @@ const TransitionFilm: React.FC<{
             from={from}
             durationInFrames={dur}
             name={`shot-${i + 1}-${spec.layout}`}
-            style={elevated ? { zIndex: 1000 - i } : undefined}
+            style={elevated ? { zIndex: 1_000_000 - i } : undefined}
           >
             <TransitionShot
               spec={spec}

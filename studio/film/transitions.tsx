@@ -114,7 +114,9 @@ const Plain: React.FC<{ width: number; height: number; children: React.ReactNode
 
 const MatchCut: React.FC<TransitionLayerProps> = ({ p, side, width, height, children, frames }) => {
   const k = Math.max(2, frames ?? 14);
-  const q = easeOutCubic(clamp01((p * k) / 8));
+  // 规格是「8 帧内完成」：窗口比 8 帧长时前 8 帧走完；窗口更短时按窗口走完。
+  const span = Math.min(8, k);
+  const q = easeOutCubic(clamp01((p * k) / span));
   const out = side === "out";
   const scale = out ? 1 + 0.04 * q : 1.04 - 0.04 * q;
   // 出画逐渐退场、入画逐渐进场。两者在同一几何量上，切换时看不出"跳"。
