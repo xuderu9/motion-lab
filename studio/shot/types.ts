@@ -265,7 +265,9 @@ export type LayoutName =
   | "title"
   | "stat"
   | "quote"
-  | "atmosphere";
+  | "atmosphere"
+  | "page"
+  | "panel";
 
 /** 同版式的第 1/2/3 种**排布**（不是配色） */
 export type Variant = 0 | 1 | 2;

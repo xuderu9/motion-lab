@@ -158,6 +158,9 @@ export function supportsLayout(layout: string, text: string): boolean {
     case "atmosphere":
       // 全屏版式由「角色」决定，不由内容决定：任何一段文字都能做成标题卡/大数字卡
       return false;
+    case "page":
+    case "panel":
+      return true;
     case "doc":
       return true;
     default:

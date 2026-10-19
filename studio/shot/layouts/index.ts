@@ -9,6 +9,8 @@ import { CODE_MOTION_SOURCES, CODE_VARIANTS } from "./code";
 import { MAP_MOTION_SOURCES, MAP_VARIANTS } from "./map";
 import { TIMELINE_MOTION_SOURCES, TIMELINE_VARIANTS } from "./timeline";
 import { NEW_LAYOUTS, NEW_MOTION_SOURCES } from "./_new";
+import { PAGE_MOTION_SOURCES, PAGE_VARIANTS } from "./page";
+import { PANEL_MOTION_SOURCES, PANEL_VARIANTS } from "./panel";
 import type { LayoutDraw, LayoutName, LayoutContent, Theme, Variant, LayoutSize } from "../types";
 
 export const LAYOUTS: Record<LayoutName, LayoutDraw[]> = {
@@ -23,6 +25,8 @@ export const LAYOUTS: Record<LayoutName, LayoutDraw[]> = {
   stat: NEW_LAYOUTS.stat ?? [],
   quote: NEW_LAYOUTS.quote ?? [],
   atmosphere: NEW_LAYOUTS.atmosphere ?? [],
+  page: PAGE_VARIANTS,
+  panel: PANEL_VARIANTS,
 };
 
 /** 每个版式 × 变体的常驻运动源清单，供 check-shot.py 核对验收第 8 条 */
@@ -37,6 +41,8 @@ export const MOTION_SOURCES: Record<LayoutName, Record<number, string[]>> = {
   stat: NEW_MOTION_SOURCES.stat ?? {},
   quote: NEW_MOTION_SOURCES.quote ?? {},
   atmosphere: NEW_MOTION_SOURCES.atmosphere ?? {},
+  page: PAGE_MOTION_SOURCES,
+  panel: PANEL_MOTION_SOURCES,
 };
 
 export function getLayoutDraw(layout: LayoutName, variant: Variant): LayoutDraw {
